@@ -1,33 +1,85 @@
 import open3d as o3d
 import numpy as np
 
-def perform_icp(source, target, voxel_size, max_iterations=200):
+def calculate_centroid(pcd):
+    """
+    Calculate the centroid of a point cloud.
+    
+    Args:
+        pcd (open3d.geometry.PointCloud): The input point cloud.
+    
+    Returns:
+        numpy.ndarray: The centroid as a numpy array [x, y, z].
+    """
+    # Convert the point cloud to a numpy array
+    points = np.asarray(pcd.points)
+    
+    # Calculate the mean (centroid) along each axis
+    centroid = np.mean(points, axis=0)
+    
+    return centroid
+
+def compute_fpfh_features(pcd, voxel_size):
+    radius_normal = voxel_size * 2
+    radius_feature = voxel_size * 5
+
+    # Calculate the normal
+    pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
+
+    # Calculate FPFH descriptors
+    fpfh = o3d.pipelines.registration.compute_fpfh_feature(
+        pcd,
+        o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
+    return fpfh
+
+def perform_icp(source, target, voxel_size, max_iterations=200, rotation_threshold=0.02, voxel_size_threshold=1.5, apply_transformation=True):
     """
     Perform ICP alignment between two point clouds.
     Adapted from: https://medium.com/@BlanchR2/point-cloud-alignment-in-open3d-using-the-iterative-closest-point-icp-algorithm-22433693aa8a
     """
-    # Downsample point clouds
-    source_down = source.voxel_down_sample(voxel_size)
-    target_down = target.voxel_down_sample(voxel_size)
 
     # Estimate normals (required for point-to-plane ICP)
-    source_down.estimate_normals(
-        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=voxel_size * 2, max_nn=30)
+    source.estimate_normals(
+        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
     )
-    target_down.estimate_normals(
-        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=voxel_size * 2, max_nn=30)
+    target.estimate_normals(
+        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
     )
+    
+    fpfh1 = compute_fpfh_features(source, voxel_size)
+    fpfh2 = compute_fpfh_features(target, voxel_size)
 
-    # Set ICP parameters
-    threshold = voxel_size * 1.5  # Maximum correspondence distance
-    trans_init = np.identity(4)   # Initial transformation (identity matrix)
-
-    # Perform ICP registration
-    reg_result = o3d.pipelines.registration.registration_icp(
-        source_down, target_down, threshold, trans_init,
-        o3d.pipelines.registration.TransformationEstimationPointToPlane(),
-        o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_iterations)
+    distance_threshold = voxel_size * voxel_size_threshold
+    result = o3d.pipelines.registration.registration_fgr_based_on_feature_matching(
+        source, target, fpfh1, fpfh2,
+        o3d.pipelines.registration.FastGlobalRegistrationOption(maximum_correspondence_distance=distance_threshold)
     )
 
-    # Return the transformation matrix
-    return reg_result.transformation
+    result_rot = o3d.pipelines.registration.registration_icp(
+        target, source, rotation_threshold,
+        result.transformation,  # Initial Trasformation with FGR
+        o3d.pipelines.registration.TransformationEstimationPointToPlane()
+    )
+        
+    # Apply the final rotation
+    #print("Rotation Matrix:", result_rot.transformation)
+    if apply_transformation:
+        target.transform(result_rot.transformation)
+    #o3d.visualization.draw_geometries([source, target], window_name="Rotation Alignment")
+
+    # Resolve traslation
+    source_centroid = calculate_centroid(source)
+    target_centroid = calculate_centroid(target)
+    result_trl = source_centroid - target_centroid
+        
+    # Apply the final traslation
+    #print("Traslation Vector:", result_trl)
+    if apply_transformation:
+        target.translate(result_trl)
+    #o3d.visualization.draw_geometries([source, target], window_name="Translation Alignment")
+
+    if apply_transformation:
+        return source, target
+    else:
+        return result_rot, result_trl
+    
