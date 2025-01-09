@@ -38,6 +38,25 @@ def perform_icp(source, target, voxel_size, max_iterations=200, rotation_thresho
     Adapted from: https://medium.com/@BlanchR2/point-cloud-alignment-in-open3d-using-the-iterative-closest-point-icp-algorithm-22433693aa8a
     """
 
+    # Resolve scaling
+    source_points = np.asarray(source.points)
+    source_centroid = calculate_centroid(source)
+    source_distances = np.linalg.norm(source_points - source_centroid, axis=1)
+    source_max_dist = np.max(source_distances)
+
+    target_points = np.asarray(target.points)
+    target_centroid = calculate_centroid(target)
+    target_distances = np.linalg.norm(target_points - target_centroid, axis=1)
+    target_max_dist = np.max(target_distances)
+    
+    result_scale = source_max_dist / target_max_dist
+        
+    # Apply the final scaling
+    print("Scaling Factor:", result_scale)
+    if apply_transformation:
+        target.scale(result_scale, center=target_centroid)
+    o3d.visualization.draw_geometries([source, target], window_name="Scaling Alignment")
+
     # Estimate normals (required for point-to-plane ICP)
     source.estimate_normals(
         search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
@@ -62,10 +81,10 @@ def perform_icp(source, target, voxel_size, max_iterations=200, rotation_thresho
     )
         
     # Apply the final rotation
-    #print("Rotation Matrix:", result_rot.transformation)
+    print("Rotation Matrix:", result_rot.transformation)
     if apply_transformation:
         target.transform(result_rot.transformation)
-    #o3d.visualization.draw_geometries([source, target], window_name="Rotation Alignment")
+    o3d.visualization.draw_geometries([source, target], window_name="Rotation Alignment")
 
     # Resolve traslation
     source_centroid = calculate_centroid(source)
@@ -73,13 +92,13 @@ def perform_icp(source, target, voxel_size, max_iterations=200, rotation_thresho
     result_trl = source_centroid - target_centroid
         
     # Apply the final traslation
-    #print("Traslation Vector:", result_trl)
+    print("Traslation Vector:", result_trl)
     if apply_transformation:
         target.translate(result_trl)
-    #o3d.visualization.draw_geometries([source, target], window_name="Translation Alignment")
+    o3d.visualization.draw_geometries([source, target], window_name="Translation Alignment")
 
     if apply_transformation:
-        return source, target
+        return target
     else:
-        return result_rot, result_trl
+        return result_scale, result_trl, result_rot
     
