@@ -1,5 +1,4 @@
 # to validate the implementationss
-
 import open3d as o3d
 import numpy as np
 import plotly.graph_objects as go
@@ -21,7 +20,7 @@ def downsample_point_cloud(pcd, voxel_size):
     return pcd.voxel_down_sample(voxel_size)
 
 # Converting the point cloud to a Plotly 3D scatter plot.
-def point_cloud_to_plotly(pcd, color):
+def point_cloud_to_plotly(pcd, color, name_fig="Point Cloud"):
     """
     Convert an Open3D point cloud to a Plotly 3D scatter plot.
     """
@@ -32,7 +31,7 @@ def point_cloud_to_plotly(pcd, color):
         z=points[:, 2],
         mode='markers',
         marker=dict(size=2, color=color),
-        name="Point Cloud"
+        name=name_fig
     )
 
 # Visualizing point cloud in a 3D Plotly scatter plot.
@@ -69,22 +68,22 @@ def visualize_multiple_point_clouds(source, target=None, transformed_source=None
         title (str, optional): The title of the plot.
     """
     # Create a 3D scatter plot for the source point cloud (red)
-    source_plot = point_cloud_to_plotly(source, 'red')
+    source_plot = point_cloud_to_plotly(source, 'red', "Source Point Cloud")
 
     # Create a 3D scatter plot for the target point cloud (green)
     target_plot = None
     if target is not None:
-        target_plot = point_cloud_to_plotly(target, 'green')
+        target_plot = point_cloud_to_plotly(target, 'green', "Target Point Cloud")
 
     # Create a 3D scatter plot for the transformed source point cloud (blue)
     transformed_plot = None
     if transformed_source is not None:
-        transformed_plot = point_cloud_to_plotly(transformed_source, 'blue')
+        transformed_plot = point_cloud_to_plotly(transformed_source, 'blue', "Transformed Point Cloud")
 
     # Create a 3D scatter plot for the differences (yellow)
     differences_plot = None
     if differences is not None:
-        differences_plot = point_cloud_to_plotly(differences, 'yellow')
+        differences_plot = point_cloud_to_plotly(differences, 'yellow', "Differences Point Cloud")
 
     # Create the figure
     fig = go.Figure()
@@ -112,7 +111,7 @@ def visualize_multiple_point_clouds(source, target=None, transformed_source=None
     # Show the figure
     fig.show()
 
-def apply_transformation(pcd, angle_degrees, axis='x'):
+def apply_transformation(pcd, angle_degrees, axis='x', translation=None):
     """
     Apply a transformation (e.g., tilt) to a point cloud.
     
@@ -126,33 +125,55 @@ def apply_transformation(pcd, angle_degrees, axis='x'):
     """
     # Convert the angle to radians
     angle_radians = np.radians(angle_degrees)
+    print("Angolo (rad): ", angle_radians)
     
-    # Create a rotation matrix based on the specified axis
+    # Initialize rotation angles for x, y, z
+    rotation_x, rotation_y, rotation_z = 0.0, 0.0, 0.0
+    
+    # Set the rotation angle for the specified axis
     if axis == 'x':
-        rotation_matrix = np.array([
-            [1, 0, 0],
-            [0, np.cos(angle_radians), -np.sin(angle_radians)],
-            [0, np.sin(angle_radians), np.cos(angle_radians)]
-        ])
+        rotation_x = angle_radians
     elif axis == 'y':
-        rotation_matrix = np.array([
-            [np.cos(angle_radians), 0, np.sin(angle_radians)],
-            [0, 1, 0],
-            [-np.sin(angle_radians), 0, np.cos(angle_radians)]
-        ])
+        rotation_y = angle_radians
     elif axis == 'z':
-        rotation_matrix = np.array([
-            [np.cos(angle_radians), -np.sin(angle_radians), 0],
-            [np.sin(angle_radians), np.cos(angle_radians), 0],
-            [0, 0, 1]
-        ])
+        rotation_z = angle_radians
     else:
-        raise ValueError("Invalid axis. Choose 'x', 'y', or 'z'.")
+        raise ValueError("Axis must be 'x', 'y', or 'z'.")
+    
+    # Get the rotation matrix
+    rotation_matrix = o3d.geometry.get_rotation_matrix_from_xyz((rotation_x, rotation_y, rotation_z))
+
+    centroid = calculate_centroid(pcd)
+    print("Before rotation : ", centroid)
     
     # Apply the rotation to the point cloud
-    pcd.rotate(rotation_matrix, center=(0, 0, 0))
+    pcd = pcd.rotate(rotation_matrix, center=centroid)
+
+    if translation is not None:
+        pcd = pcd.translate(translation)
+        new_centroid = calculate_centroid(pcd)
+        print("After rotation and translation : ", new_centroid)
     
     return pcd
+
+def calculate_centroid(pcd):
+    """
+    Calculate the centroid of a point cloud.
+    
+    Args:
+        pcd (open3d.geometry.PointCloud): The input point cloud.
+    
+    Returns:
+        numpy.ndarray: The centroid as a numpy array [x, y, z].
+    """
+    # Convert the point cloud to a numpy array
+    points = np.asarray(pcd.points)
+    
+    # Calculate the mean (centroid) along each axis
+    centroid = np.mean(points, axis=0)
+    
+    return centroid
+
 
 
 ######### MAIN #########
@@ -162,27 +183,29 @@ if __name__ == "__main__":
     source_path = r"C:\Users\ACER\Desktop\MAGISTRALE\UNIGE MAGISTRALE 2 ANNO\AUGMENTED AND VIRTUAL REALITY\Project_Exam\Code\ICP-Merging\data\input\oct23.ply"
     target_path = r"C:\Users\ACER\Desktop\MAGISTRALE\UNIGE MAGISTRALE 2 ANNO\AUGMENTED AND VIRTUAL REALITY\Project_Exam\Code\ICP-Merging\data\input\oct24.ply"
 
+    # loading the point cloud and downsample it
     loaded_source = load_ply_as_point_cloud(source_path)
-    down_loaded_source = downsample_point_cloud(loaded_source, 0.05)
-    source_plot = point_cloud_to_plotly(down_loaded_source, 'red')
+    downsampled_source = downsample_point_cloud(loaded_source, voxel_size=0.5)
 
-    # Downsample the source point cloud
-    downsampled_source = downsample_point_cloud(loaded_source, voxel_size=0.25)
+    # loading the point cloud and downsample it (for translation and rotation)
+    loaded_source_2 = load_ply_as_point_cloud(source_path)
+    downsampled_source_2 = downsample_point_cloud(loaded_source_2, 0.5)
 
-    # Apply a transformation (e.g., tilt by 15 degrees around the X-axis)
-    transformed_source = apply_transformation(downsampled_source, angle_degrees=35, axis='y')
+    # Apply a transformation (e.g., tilt by 65 degrees around the X-axis)
+    transformed_source = apply_transformation(downsampled_source_2, angle_degrees=65, axis='z',translation=np.array([2, 2, 2]))
+
+    # Debug: print the first 5 points of both point clouds to check if they are different
+    # print("Original points (first 5):\n", np.asarray(downsampled_source.points)[:5])
+    # print("Transformed points (first 5):\n", np.asarray(transformed_source.points)[:5])
 
     # Visualize the original and transformed point clouds
+    """
+    The transformation to Scatter3D is done inside the function visualize_multiple_point_clouds
+    """
     visualize_multiple_point_clouds(
-        source=downsampled_source,
-        transformed_source=transformed_source,
+        source=downsampled_source,                          # point cloud
+        target=None,
+        transformed_source=transformed_source,              # point cloud
+        differences=None,
         title="Original and Transformed Point Clouds"
     )
-
-    # visualize_single_point_cloud(source_plot)
-
-    # transformed_source_path = "data/output/transformed_model.ply"  # Optional
-    # differences_path = "data/output/differences.ply"  # Optional
-
-    # Validate the ICP alignment
-    # validate_icp(source_path, target_path, transformed_source_path, differences_path)
