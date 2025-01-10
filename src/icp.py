@@ -100,5 +100,5 @@ def perform_icp(source, target, voxel_size, max_iteration=200, rotation_threshol
     if apply_transformation:
         return target
     else:
-        return result_scale, result_trl, result_rot
+        return result_scale, result_trl, result_rot.transformation
     
