@@ -9,38 +9,29 @@ import numpy as np
 
 if __name__ == "__main__":
     # Load point clouds
-    #source = load_ply_as_point_cloud("data/input/Pie_v1.ply")
-    #target = load_ply_as_point_cloud("data/input/Pie_v2.ply")
+    source = load_ply_as_point_cloud("../data/input/ChurchRock_v1.ply")
+    target = load_ply_as_point_cloud("../data/input/ChurchRock_v2.ply")
 
-    bunny1 = o3d.data.BunnyMesh()
-    bunny2 = o3d.data.BunnyMesh()
-    source = o3d.io.read_point_cloud(bunny1.path)
-    target = o3d.io.read_point_cloud(bunny2.path)
+    #bunny1 = o3d.data.BunnyMesh()
+    #bunny2 = o3d.data.BunnyMesh()
+    #source = o3d.io.read_point_cloud(bunny1.path)
+    #target = o3d.io.read_point_cloud(bunny2.path)
 
     # Preprocess point clouds
-    voxel_size = 0.002
+    voxel_size = 0.05
     source = downsample_point_cloud(source, voxel_size)
     target = downsample_point_cloud(target, voxel_size)
     estimate_normals(source, radius=0.1, max_nn=30)
     estimate_normals(target, radius=0.1, max_nn=30)
 
-    #####
-    rotation_matrix = o3d.geometry.get_rotation_matrix_from_xyz((np.pi / 2, np.pi / 2, np.pi / 2))
-   
-    # Apply the translation to the point cloud
-    loaded_target = target.translate((1, 0, 0))
- 
-    # Apply the rotation to the point cloud
-    loaded_target = loaded_target.rotate(rotation_matrix, center=calculate_centroid(loaded_target))
+    # Apply the translation to the point cloud (for testing)
+    target = target.translate((1, 0, 0))
 
-    # Apply random scaling
-    loaded_target = loaded_target.scale(0.5, center=calculate_centroid(loaded_target))
- 
-    o3d.visualization.draw_geometries([source, loaded_target], window_name="Original Alignment")
-    ######
+    o3d.visualization.draw_geometries([source, target], window_name="Original Alignment")
 
     # Perform ICP alignment
     target = perform_icp(source, target, voxel_size)
+    #save_point_cloud_as_ply(target, "../data/output/target_icp.ply")
     
     # Merge point clouds
     #merged_cloud = merge_point_clouds(source, target)
