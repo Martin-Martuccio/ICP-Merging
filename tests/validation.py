@@ -125,7 +125,7 @@ def apply_transformation(pcd, angle_degrees, axis='x', translation=None):
     """
     # Convert the angle to radians
     angle_radians = np.radians(angle_degrees)
-    print("Angolo (rad): ", angle_radians)
+    print("Angle (rad): ", angle_radians)
     
     # Initialize rotation angles for x, y, z
     rotation_x, rotation_y, rotation_z = 0.0, 0.0, 0.0
@@ -180,8 +180,8 @@ def calculate_centroid(pcd):
 
 if __name__ == "__main__":
     # Paths to your PLY files
-    source_path = r"C:\Users\ACER\Desktop\MAGISTRALE\UNIGE MAGISTRALE 2 ANNO\AUGMENTED AND VIRTUAL REALITY\Project_Exam\Code\ICP-Merging\data\input\oct23.ply"
-    target_path = r"C:\Users\ACER\Desktop\MAGISTRALE\UNIGE MAGISTRALE 2 ANNO\AUGMENTED AND VIRTUAL REALITY\Project_Exam\Code\ICP-Merging\data\input\oct24.ply"
+    source_path = "..\data\input\oct23.ply"
+    target_path = "..\data\input\oct24.ply"
 
     # loading the point cloud and downsample it
     loaded_source = load_ply_as_point_cloud(source_path)

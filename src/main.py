@@ -2,42 +2,51 @@
 from io_handler import load_ply_as_point_cloud, save_point_cloud_as_ply
 from preprocessing import downsample_point_cloud, estimate_normals
 from icp import perform_icp, calculate_centroid
-from merging import merge_point_clouds, highlight_differences
-
+from merging import compare_and_color, load_plydata, merge_point_clouds, highlight_differences
+import plyfile
+from plyfile import PlyData, PlyElement
 import open3d as o3d
 import numpy as np
 
 if __name__ == "__main__":
-    # Load point clouds
-    source = load_ply_as_point_cloud("../data/input/ChurchRock_v1.ply")
-    target = load_ply_as_point_cloud("../data/input/ChurchRock_v2.ply")
+    source_path = "../data/input/pie1_ASCII.ply"
+    target_path = "../data/input/pie1_ASCII2.ply"
+    voxel_parameter = 0.05 
 
-    #bunny1 = o3d.data.BunnyMesh()
-    #bunny2 = o3d.data.BunnyMesh()
-    #source = o3d.io.read_point_cloud(bunny1.path)
-    #target = o3d.io.read_point_cloud(bunny2.path)
+    # Loading the first PLY file
+    ply1_points, ply1_colors = load_plydata(source_path)
 
-    # Preprocess point clouds
-    voxel_size = 0.05
-    source = downsample_point_cloud(source, voxel_size)
-    target = downsample_point_cloud(target, voxel_size)
-    estimate_normals(source, radius=0.1, max_nn=30)
-    estimate_normals(target, radius=0.1, max_nn=30)
+    # Loading the second PLY file
+    ply2_points, ply2_colors = load_plydata(target_path)
 
-    # Apply the translation to the point cloud (for testing)
-    target = target.translate((1, 0, 0))
+    #result_scale, result_trl, result_rot = compute_transformation(source_path, target_path, voxel_parameter)
 
-    o3d.visualization.draw_geometries([source, target], window_name="Original Alignment")
+    # Applica la trasformazione al secondo modello
+    #ply2_points = apply_transformation(ply2_points, result_scale, result_trl, result_rot)
 
-    # Perform ICP alignment
-    target = perform_icp(source, target, voxel_size)
-    #save_point_cloud_as_ply(target, "../data/output/target_icp.ply")
-    
-    # Merge point clouds
-    #merged_cloud = merge_point_clouds(source, target)
+    # Confronta i punti e cambia colore
+    ply1_colors, ply2_colors = compare_and_color(ply1_points, ply2_points, ply1_colors, ply2_colors, threshold=0.00001)
 
-    # Highlight differences
-    #highlight_differences(source, target, threshold=0.05)
+    # Unisci i punti e i colori dei due modelli
+    merged_points = np.vstack([ply1_points, ply2_points])
+    merged_colors = np.vstack([ply1_colors, ply2_colors])
 
-    # Save merged point cloud
-    #save_point_cloud_as_ply(merged_cloud, "data/output/merged_model.ply")
+    # Crea un nuovo file PLY
+    merged_vertices = np.zeros(merged_points.shape[0], dtype=[
+        ('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
+        ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')
+    ])
+
+    merged_vertices['x'] = merged_points[:, 0]
+    merged_vertices['y'] = merged_points[:, 1]
+    merged_vertices['z'] = merged_points[:, 2]
+    merged_vertices['red'] = merged_colors[:, 0]
+    merged_vertices['green'] = merged_colors[:, 1]
+    merged_vertices['blue'] = merged_colors[:, 2]
+
+    # Salva il file PLY risultante
+    merged_ply = PlyData([PlyElement.describe(merged_vertices, 'vertex')], text=True)
+    merged_ply.write("merged_model.ply")
+
+    pcd = load_ply_as_point_cloud("merged_model.ply")
+    o3d.visualization.draw_geometries([pcd], window_name="Merged Model")
