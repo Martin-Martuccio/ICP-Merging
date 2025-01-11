@@ -11,16 +11,16 @@ from icp import perform_icp
 def apply_transformation(points, scale, translation, rotation_matrix):
     # Apply scaling
     points = points * scale
-    # Apply translation
-    points = points + translation
     # Apply rotation
     for point in points:
         position_homogeneous = np.array([*point, 1])
         point = np.dot(rotation_matrix, position_homogeneous)[:3]
+    # Apply translation
+    points = points + translation
     return points
 
 # Function to compare points and change color
-def compare_and_color(points1, points2, colors1, colors2, threshold=0.01):
+def compare_and_color(points1, points2, colors1, colors2, threshold=0.001):
     # Ensure points are in Open3D PointCloud format
     pcd1 = o3d.geometry.PointCloud()
     pcd1.points = o3d.utility.Vector3dVector(points1)
@@ -46,16 +46,21 @@ def compare_and_color(points1, points2, colors1, colors2, threshold=0.01):
             mismatch_indices_p2.append(i)
     
     # Mark mismatched points in colors1 and colors2
-    colors1[mismatch_indices_p1] = [255, 0, 0]  # Red for points in points1 without a match
-    colors2[mismatch_indices_p2] = [0, 255, 0]  # Green for points in points2 without a match
+    colors1[mismatch_indices_p1] = [255, 0, 0]  # Red for points in points1 without a match (missing/removed parts)
+    colors2[mismatch_indices_p2] = [0, 255, 0]  # Green for points in points2 without a match (extra/added parts)
     
     return colors1, colors2
 
 # Loading a PLY file features (coordinates and colors)
-def load_plydata(file_path):
+def load_plydata(file_path, default_color=[171, 171, 171]):
     ply = PlyData.read(file_path)
     points = np.vstack([ply['vertex']['x'], ply['vertex']['y'], ply['vertex']['z']]).T
-    colors = np.vstack([ply['vertex']['red'], ply['vertex']['green'], ply['vertex']['blue']]).T
+    try:
+        colors = np.vstack([ply['vertex']['red'], ply['vertex']['green'], ply['vertex']['blue']]).T
+    except ValueError:
+        colors = points.copy()
+        for i in range(len(colors)):
+            colors[i] = default_color
     return points, colors
 
 # Compute the transformation (scaling , translation and rotation) needed to align two point clouds

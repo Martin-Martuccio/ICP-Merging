@@ -30,7 +30,7 @@ def compute_fpfh_features(pcd, voxel_size):
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
     return fpfh
 
-def perform_icp(source, target, voxel_size, max_iteration=200, rotation_threshold=0.02, voxel_size_factor=1.5, apply_transformation=True):
+def perform_icp(source, target, voxel_size, max_iteration=10000, rotation_threshold=0.0001, voxel_size_factor=1.5, apply_transformation=True):
     """
     Perform ICP alignment between two point clouds.
     Adapted from: https://medium.com/@BlanchR2/point-cloud-alignment-in-open3d-using-the-iterative-closest-point-icp-algorithm-22433693aa8a

@@ -2,16 +2,16 @@
 from io_handler import load_ply_as_point_cloud, save_point_cloud_as_ply
 from preprocessing import downsample_point_cloud, estimate_normals
 from icp import perform_icp, calculate_centroid
-from merging import compare_and_color, load_plydata, merge_point_clouds, highlight_differences
+from merging import compare_and_color, load_plydata, compute_transformation, apply_transformation
 import plyfile
 from plyfile import PlyData, PlyElement
 import open3d as o3d
 import numpy as np
 
 if __name__ == "__main__":
-    source_path = "../data/input/pie1_ASCII.ply"
-    target_path = "../data/input/pie1_ASCII2.ply"
-    voxel_parameter = 0.05 
+    source_path = "../data/input/SatiroEBaccante_broken2.ply"
+    target_path = "../data/input/SatiroEBaccante_broken.ply"
+    voxel_parameter = 0.01 
 
     # Loading the first PLY file
     ply1_points, ply1_colors = load_plydata(source_path)
@@ -19,13 +19,12 @@ if __name__ == "__main__":
     # Loading the second PLY file
     ply2_points, ply2_colors = load_plydata(target_path)
 
-    #result_scale, result_trl, result_rot = compute_transformation(source_path, target_path, voxel_parameter)
-
     # Applica la trasformazione al secondo modello
-    #ply2_points = apply_transformation(ply2_points, result_scale, result_trl, result_rot)
+    result_scale, result_trl, result_rot = compute_transformation(source_path, target_path, voxel_parameter)
+    ply2_points = apply_transformation(ply2_points, result_scale, result_trl, result_rot)
 
     # Confronta i punti e cambia colore
-    ply1_colors, ply2_colors = compare_and_color(ply1_points, ply2_points, ply1_colors, ply2_colors, threshold=0.00001)
+    ply1_colors, ply2_colors = compare_and_color(ply1_points, ply2_points, ply1_colors, ply2_colors)
 
     # Unisci i punti e i colori dei due modelli
     merged_points = np.vstack([ply1_points, ply2_points])
@@ -46,7 +45,7 @@ if __name__ == "__main__":
 
     # Salva il file PLY risultante
     merged_ply = PlyData([PlyElement.describe(merged_vertices, 'vertex')], text=True)
-    merged_ply.write("merged_model.ply")
+    merged_ply.write("../data/output/merged_model.ply")
 
-    pcd = load_ply_as_point_cloud("merged_model.ply")
+    pcd = load_ply_as_point_cloud("../data/output/merged_model.ply")
     o3d.visualization.draw_geometries([pcd], window_name="Merged Model")
