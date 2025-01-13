@@ -15,49 +15,38 @@ The project manipulates PLY files using the `PlyData` and `PlyFile` libraries, p
 - **Difference Highlighting**: Visualizes differences between the models using colors:
   - **Green**: Represents "new" parts (additions).
   - **Red**: Represents "eroded" parts (removals).
-- **Custom PLY Creation**: Manually extracts, merges, and creates PLY files with custom properties.
 - **Gaussian Splatting Compatibility**: Supports advanced Gaussian Splatting PLY files for enhanced 3D representation.
 
 ---
 
-## Requirements
-
-- **Python 3.x**
-- **NumPy**: For numerical operations.
-- **Open3D**: For 3D data processing and visualization.
-- **PlyFile**: For reading and writing PLY files.
-
-Install the required dependencies using:
-```bash
-pip install numpy open3d plyfile
-```
-
 ## Installation
 
 1. Clone the repository:
+
     ```sh
-    git clone https://github.com/yourusername/ICP-Merging.git
+    git clone https://github.com/Martin-Martuccio/ICP-Merging.git
     cd ICP-Merging
     ```
+
 2. Install the required dependencies:
+
     ```sh
-    pip install -r requirements.txt
+    pip install -r requirements.yml
     ```
 
 # Usage
 
-## Prepare Input Models:
-- Place your PLY files (standard or Gaussian Splatting) in the input folder.
-  
-- Ensure the files are in ASCII format for compatibility.
+## Prepare Input Models
 
-## Run the ICP-Merging Script:
+Place your PLY files (standard or Gaussian Splatting) in the input folder (`data/input/`).
+
+## Run the ICP-Merging Script
 
 - Open the `main.py` file and update the paths to your input models:
   
   ```sh
-    source_path = "input/model1.ply"
-    target_path = "input/model2.ply"
+    source_path = "data/input/model1.ply"
+    target_path = "data/input/model2.ply"
   ```
   
 - Run the script:
@@ -66,34 +55,38 @@ pip install numpy open3d plyfile
     python main.py
   ```
 
-## Output:
+## Output
 
-- The merged model will be saved as `merged_model.ply` in the output folder.
+- The merged model will be saved as `merged_model.ply` in the output folder (`data/output/`).
   
 - Differences between the models will be highlighted in green (new parts) and red (eroded parts).
   
-
 # Example Workflow
 
-## Input Models:
+We took the [Satiro e Baccante](https://poly.cam/capture/5621D36B-36BF-4655-AE5C-B2D68DF0A851?) statue (sculpted by James Pradier), from `poly.cam` website, as example.
+
+## Input Models
 
 - `model1.ply`: Represents the initial state of a cultural heritage site.
   
 - `model2.ply`: Represents the current state of the same site.
-  
 
-## Merging Process:
+## Merging Process
 
 - The ICP algorithm aligns the two models.
+
+| <img src="images/ICP_Before.png" alt="Before ICP" width="300"/> | <img src="images/ICP_After.png" alt="After ICP" width="200"/> |
+|-------------------------------------------------------------|---------------------------------------------------------------|
   
 - Differences are highlighted:
   
   - Green: New structures or additions.
-    
-  - Red: Eroded or missing structures.
-    
 
-## Output:
+  - Red: Eroded or missing structures.
+
+<img src="images/Example_Broken.png" alt="Satiro e Baccante" width="300"/>
+
+## Output
 
 - A single PLY file (`merged_model.ply`) is created, showing the aligned models with highlighted differences.
 
@@ -105,48 +98,48 @@ For more information on Gaussian Splatting, refer to:
 
 - [Gaussian Splatting - Wikipedia](https://en.wikipedia.org/wiki/Gaussian_splatting)
   
-- [Gaussian Splatting Paper (arXiv)](https://arxiv.org/abs/2112.10670)
+- [Gaussian Splatting Paper (arXiv)](https://arxiv.org/abs/2308.04079)
   
+# Future Work
 
+- **Support for Splat PLY Files:** Enhance the project to handle Gaussian Splatting PLY files with additional features.
+  
+- **Performance Optimization:** Reduce computational costs for large models.
+  
+- **User Interface:** Develop a graphical interface for easier model selection, visualization and iteration.
+  
 # Collaborators
 
 This project was developed by:
 
 - [@Martin-Martuccio](https://github.com/Martin-Martuccio) - Martin Martuccio
   
-- [@PSamK](https://github.com/PSamK) - PSamK
+- [@PSamK](https://github.com/PSamK) - Samuele Pellegrini
   
 - [@biaperass](https://github.com/biaperass) - Bianca Perasso
   
 - [@LorenzoMesi](https://github.com/LorenzoMesi) - Lorenzo Mesi
   
+## Contact
+
+For questions, issues, or collaborations, please contact:
+
+- Martin Martuccio: [[martinmartuccio@gmail.com](Martin:martinmartuccio@gmail.com)]
+
+- Samuele Pellegrini: [[pellegrini.samuele.1@gmail.com](Samuele:pellegrini.samuele.1@gmail.com)]
+
+- Bianca Perasso: [[bianca.perasso@gmail.com](Bianca:bianca.perasso@gmail.com)]
+
+- Lorenzo Mesi: [[mesilorenzo@gmail.com](Lorenzo:mesilorenzo@gmail.com)]
+
+# Acknoledgements
+
+This project was developed to explore the potential of Gaussian Splatting techniques for cultural heritage preservation, as part of the project exam for the course [Augmented and Virtual Reality](https://corsi.unige.it/off.f/2023/ins/66562) during Master's degree in Computer Engineering - Artifical Intelligence at the University of Genova.
 
 # License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
 
-# Acknowledgements
-
-- Gaussian Splatting: For advanced 3D representation techniques.
-  
-- Open3D: For 3D data processing and visualization.
-  
-- PlyFile: For PLY file manipulation.
-  
-
-# Contact
-
-For questions, issues, or collaborations, please contact:
-
-- Your Name: [[martinmartuccio@gmail.com](Martin:martinmartuccio@gmail.com)]
-  
-- Project Repository: https://github.com/.../ICP-Merging
-  
-
-# Future Work
-
-- **Support for Splat PLY Files:** Enhance the project to handle Gaussian Splatting PLY files with additional features.
-  
-- **Performance Optimization:** Reduce computational costs for large datasets.
-  
-- **User Interface:** Develop a graphical interface for easier model selection and visualization.
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python: 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)
