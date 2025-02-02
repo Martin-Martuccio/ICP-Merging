@@ -1,14 +1,16 @@
+''' ### No more used ###
 # here we have to load PLY files , performing ICP, merging models, and highlighting differences.
-from io_handler import load_ply_as_point_cloud, save_point_cloud_as_ply
-from preprocessing import downsample_point_cloud, estimate_normals
-from icp import perform_icp, calculate_centroid
+from io_handler import load_ply_as_point_cloud
 from merging import compare_and_color, load_plydata, compute_transformation, apply_transformation
-import plyfile
 from plyfile import PlyData, PlyElement
 import open3d as o3d
 import numpy as np
+'''
+import SplatPLYHandler
 
 if __name__ == "__main__":
+
+    ''' ### No more used ###
     source_path = "../data/input/SatiroEBaccante_broken2.ply"
     target_path = "../data/input/SatiroEBaccante_broken.ply"
     voxel_parameter = 0.01 
@@ -49,3 +51,24 @@ if __name__ == "__main__":
 
     pcd = load_ply_as_point_cloud("../data/output/merged_model.ply")
     o3d.visualization.draw_geometries([pcd], window_name="Merged Model")
+    '''
+
+    # Create an instance of SplatPLYHandler
+    handler1 = SplatPLYHandler()
+    handler2 = SplatPLYHandler()
+
+    # Load two PLY files
+    handler1.load_ply("../data/input/SatiroEBaccante_broken2.ply")
+    handler2.load_ply("../data/input/SatiroEBaccante_broken.ply")
+    
+    # Calculate the alignment
+    transformation = handler2.align_icp(handler1)
+    
+    # Align the second PLY
+    handler2.apply_transformation(matrix4d = transformation)
+    
+    # Compare the two PLY files
+    merged_handler = handler1.compare_and_merge(handler2, mode = 1)
+    
+    # Save the resulting PLY file
+    merged_handler.save_ply("../data/output/merged_model.ply")
