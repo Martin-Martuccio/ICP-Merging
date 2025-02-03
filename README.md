@@ -4,14 +4,14 @@
 
 This project implements the **Iterative Closest Point (ICP)** algorithm to merge two 3D models in PLY format, including those generated using **Gaussian Splatting**. The ICP algorithm aligns and merges the models by minimizing the differences between their point clouds. The resulting merged model highlights differences between the two input models, with **green** indicating "new" parts and **red** indicating "eroded" parts. This is particularly useful for **cultural heritage** applications, where it can help visualize changes over time.
 
-The project manipulates PLY files using the `PlyData` and `PlyFile` libraries, performing manual extraction, merging, and custom PLY file creation. It also supports Gaussian Splatting PLY files, which include additional features but require higher computational resources.
+The project manipulates Gaussian Splatting PLY files using a custom class called `SplatPLYHandler`, performing manual extraction, merging, custom file creation and additional features (require higher computational resources). It also supports PLY files.
 
 ---
 
 ## Features
 
 - **ICP Alignment**: Aligns two 3D models using the Iterative Closest Point algorithm.
-- **PLY File Support**: Handles both standard PLY files and Gaussian Splatting PLY files.
+- **PLY File Support**: Handles both standard Gaussian Splatting PLY files and PLY files.
 - **Difference Highlighting**: Visualizes differences between the models using colors:
   - **Green**: Represents "new" parts (additions).
   - **Red**: Represents "eroded" parts (removals).

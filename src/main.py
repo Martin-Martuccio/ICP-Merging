@@ -53,13 +53,16 @@ if __name__ == "__main__":
     o3d.visualization.draw_geometries([pcd], window_name="Merged Model")
     '''
 
+    source_path = "../data/input/SatiroEBaccante_broken2.ply"
+    target_path = "../data/input/SatiroEBaccante_broken.ply"
+
     # Create an instance of SplatPLYHandler
     handler1 = SplatPLYHandler()
     handler2 = SplatPLYHandler()
 
     # Load two PLY files
-    handler1.load_ply("../data/input/SatiroEBaccante_broken2.ply")
-    handler2.load_ply("../data/input/SatiroEBaccante_broken.ply")
+    handler1.load_ply(source_path)
+    handler2.load_ply(target_path)
     
     # Calculate the alignment
     transformation = handler2.align_icp(handler1)

@@ -8,7 +8,7 @@ class SplatPLYHandler:
     A class for handling and manipulating PLY (Polygon File Format) and SPLAT PLY (3D Gaussian splatting) files.
 
     This class provides methods to:
-    - Load and parse PLY files in binary little-endian format.
+    - Load and parse PLY files in binary little-endian format, binary big-endian format and ascii format.
     - Save modified PLY files with updated elements and properties.
     - Normalize and standardize property names for consistency.
     - Apply transformations (rotation, translation) to vertex positions and normals.
@@ -24,9 +24,6 @@ class SplatPLYHandler:
         - format (str): The format of the PLY file (default: "binary_little_endian 1.0").
         - elements (dict): Dictionary storing element properties, formats, and binary data.
         - comments (list): List of comments found in the PLY file.
-        - mappingTypes (dict): Mapping between PLY property types and their corresponding struct formats.
-        - _inv_SH_C0 (float): Precomputed inverse of the first spherical harmonic coefficient used
-                              for color modifications.
     """
 
 
@@ -41,7 +38,7 @@ class SplatPLYHandler:
             - format: Default PLY format.
             - elements: Dictionary to store element properties (e.g., vertices, faces).
             - comments: List to store comments in the PLY file.
-            - mapping: Mapping from PLY property types to struct formats for binary parsing.
+            - _mappingPLYTypes: Mapping from PLY property types to struct formats for binary parsing.
             - _inv_SH_C0: Precomputed inverse of the first spherical harmonic coefficient.
         """
 
@@ -49,16 +46,28 @@ class SplatPLYHandler:
         self.elements = {}  # Dictionary to store elements and their properties
         self.comments = []  # List to store comments
 
-        # Define the mapping between (PLY) property types and struct formats
-        self.mappingTypes = {
-            "char":   "c", # '<c' 1-byte character
-            "uchar":  "B", # '<B' 1-byte unsigned char
-            "short":  "h", # '<h' 2-byte short int
-            "ushort": "H", # '<H' 2-byte unsigned short int
-            "int":    "i", # '<i' 4-byte int
-            "uint":   "I", # '<I' 4-byte unsigned int
-            "float":  "f", # '<f' 4-byte single-precision float
-            "double": "d", # '<d' 8-byte double-precision float
+        # Define the mapping between PLY property types and struct formats
+        self._mappingPLYTypes = {
+            "char":   "c", # 'c' 1-byte character
+            "uchar":  "B", # 'B' 1-byte unsigned char
+            "short":  "h", # 'h' 2-byte short int
+            "ushort": "H", # 'H' 2-byte unsigned short int
+            "int":    "i", # 'i' 4-byte int
+            "uint":   "I", # 'I' 4-byte unsigned int
+            "float":  "f", # 'f' 4-byte single-precision float
+            "double": "d", # 'd' 8-byte double-precision float
+        }
+
+        # Define the mapping between struct formats and numpy types
+        self._mappingTypesNP = {
+            "c": np.int8,    # 'c' 1-byte character
+            "B": np.uint8,   # 'B' 1-byte unsigned char
+            "h": np.int16,   # 'h' 2-byte short int
+            "H": np.uint16,  # 'H' 2-byte unsigned short int
+            "i": np.int32,   # 'i' 4-byte int
+            "I": np.uint32,  # 'I' 4-byte unsigned int
+            "f": np.float32, # 'f' 4-byte single-precision float
+            "d": np.float64, # 'd' 8-byte double-precision float
         }
 
         # Define the first spherical harmonic coefficient (degree 0, order 0) as constant to pre-compute the color.
@@ -72,38 +81,70 @@ class SplatPLYHandler:
 
 
     ####### load_ply #######
-    def load_ply(self, filepath: str):
+    def load_ply(
+            self,
+            filepath: str,
+            normalize : bool = True
+        ):
         """
-        Loads a PLY file, parses its header, and reads its binary data into appropriate 
-        structures for further manipulation.
+        Loads a PLY file, parses its header, and reads its data into appropriate structures
+        for further manipulation.
 
         Args:
-            filepath (str): Path to the PLY file to be loaded.
+            - filepath (str): Path to the PLY file to be loaded.
+            - normalize_properties (bool, optional): If True the properties will be "normalized"
+                                                     with respect to the standard (default is True).
 
         Processes:
             - Parses the PLY header to extract format, comments, elements, and properties.
-            - Reads the binary data for each element into numpy arrays.
+            - Reads the data for each element into numpy arrays.
             - Normalizes the properties for consistency.
+
+        Raises:
+            ValueError: If the format of the file is not valid.
         """
+
+        header_end = -1
 
         with open(filepath, 'rb') as file:
             lines = []
+            header_check = True
 
             # Read header line by line until "end_header"
             while True:
                 line = file.readline().decode('utf-8').strip()
                 lines.append(line)
                 if line == "end_header":
+                    header_end = file.tell()
+                    header_check = False
                     break
 
-            # Parse the header to extract format, comments, and elements with their properties
+            if header_check:
+                raise ValueError(f"The file is not well-formatted.")
+
+            # Parse the header to extract format, comments, and elements
             self._parse_header(lines)
 
-            # Read binary data
-            self._parse_binary_data(file)
+        # Determines the opening mode based on the format
+        if self.format == "ascii 1.0":
+            mode = 'r'
+        elif self.format == "binary_little_endian 1.0" or self.format == "binary_big_endian 1.0":
+            mode = 'rb'
+        else:
+            raise ValueError(f"The used format is not valid: {self.format}")
+
+        with open(filepath, mode) as file:
+            # Skip header
+            file.seek(header_end)
+            #for _ in lines:
+            #    file.readline()
+
+            # Parse the data to extract elements with their properties
+            self._parse_data(file)
 
             # Normalize properties (e.g. renaming and/or reordering)
-            self._normalize_properties()
+            if normalize:
+                self._normalize_properties()
 
 
     ####### save_ply #######
@@ -117,10 +158,26 @@ class SplatPLYHandler:
         
         Writes:
             - A new PLY header based on the updated properties.
-            - Binary data for each element in the PLY file.
+            - Data for each element in the PLY file.
+
+        Raises:
+            - ValueError: If the format of the file is not valid.
+            - ValueError: If one of the elements doesn't have a valid format.
         """
 
-        with open(filepath, 'wb') as file:
+        # Determines the opening mode based on the format
+        if self.format == "ascii 1.0":
+            mode = 'w'
+        elif self.format == "binary_little_endian 1.0":
+            mode = 'wb'
+            endian_prefix = "<"
+        elif self.format == "binary_big_endian 1.0":
+            mode = 'wb'
+            endian_prefix = ">"
+        else:
+            raise ValueError(f"The used format is not valid: {self.format}")
+
+        with open(filepath, mode) as file:
 
             # Write the header
             header_lines = ["ply", f"format {self.format}"]
@@ -129,14 +186,39 @@ class SplatPLYHandler:
                 header_lines.append(f"element {element} {properties['count']}")
                 header_lines.extend(f"property {prop}" for prop in properties['properties'])
             header_lines.append("end_header")
-            file.write("\n".join(header_lines).encode('utf-8') + b"\n")
+            if mode == 'w':
+                file.write("\n".join(header_lines) + "\n")
+            else:
+                file.write("\n".join(header_lines).encode('utf-8') + b"\n")
 
-            # Write binary data
+            # Write data
             for element, properties in self.elements.items():
-                element_format = '<' + ''.join(properties['formats'])
-                if not element_format:
-                    raise ValueError(f"No valid format found for element '{element}'")
-                np.array(properties['data'], dtype=np.float32).tofile(file)
+                data = properties['data']
+
+                # ASCII format
+                if mode == 'w':
+                    lines = "\n".join(" ".join(map(str, row)) for row in data)
+                    file.write(lines + "\n")
+
+                # Little/Big Endian format 
+                else:
+                    # Convert all formats
+                    dtypes = []
+                    all_equal = True
+                    for idx, fmt in enumerate(properties['formats']):
+                        if fmt not in self._mappingPLYTypes.values():
+                            raise ValueError(f"Unsupported property type: {fmt}")
+                        dtypes.append((f'f{idx}', endian_prefix + fmt))
+                        if fmt != properties['formats'][0]:
+                            all_equal = False
+
+                    # If the formats are all the same then use a shortcut
+                    if all_equal:
+                        dtype = self._mappingTypesNP.get(properties['formats'][0])
+                        np.array(data, dtype=dtype).tofile(file)
+                    else:
+                        data_tuple = [tuple(row) for row in data]
+                        np.array(data_tuple, dtype=dtypes).tofile(file)
 
 
     ####### _parse_header #######
@@ -147,52 +229,102 @@ class SplatPLYHandler:
 
         Args:
             header_lines (list): List of lines from the PLY file header.
+
+        Raises:
+            - ValueError: If the format of the file is not valid.
+            - ValueError: If one of the elements doesn't have a valid format.
         """
 
         current_element = None
         for line in header_lines:
+
             if line.startswith("format"):
                 self.format = line.split(" ", 1)[1]  # Store file format
+                # Determines if the format is valid
+                if self.format not in ("ascii 1.0", "binary_little_endian 1.0", "binary_big_endian 1.0"):
+                    raise ValueError(f"The format is not valid: {self.format}")
+                
             elif line.startswith("comment"):
                 self.comments.append(line.split(" ", 1)[1])  # Store comments
+
             elif line.startswith("element"):
                 parts = line.split()
                 element_name = parts[1]
                 element_count = int(parts[2])
+
                 # Create a new entry for the new element
-                self.elements[element_name] = {"count": element_count, "properties": [], "data": [], "formats": []}
+                self.elements[element_name] = {
+                    "count": element_count,
+                    "properties": [],
+                    "data": [],
+                    "formats": []
+                }
                 current_element = element_name
+
             elif line.startswith("property"):
                 property_def = line.split(" ", 1)[1]
                 self.elements[current_element]["properties"].append(property_def)
 
                 # Update binary format for struct based on property type
                 property_type = property_def.split()[0]
-                fmt = self.mappingTypes.get(property_type, '')
+                fmt = self._mappingPLYTypes.get(property_type, '')
                 if fmt == '':
                     raise ValueError(f"Unsupported property type: {property_type}")
                 self.elements[current_element]["formats"].append(fmt)
 
 
-    ####### _parse_binary_data #######
-    def _parse_binary_data(self, file):
+    ####### _parse_data #######
+    def _parse_data(self, file):
         """
-        Parses the binary data section of the PLY file and unpacks it according to the 
-        previously extracted element formats. It stores the parsed data in the internal 
-        structures.
+        Parses the data section of the PLY file and unpacks it according to the previously
+        extracted element formats. It stores the parsed data in the internal structures.
 
         Args:
-            file (file object): Opened PLY file for reading the binary data.
-        """
+            file (file object): Opened PLY file for reading the data.
 
+        Raises:
+            - ValueError: If the format of the file is not valid.
+            - ValueError: If one of the rows is not well-formatted.
+        """
+        
+        # Determines if the format is valid
+        if self.format == "binary_little_endian 1.0":
+            endian_prefix = "<"
+        elif self.format == "binary_big_endian 1.0":
+            endian_prefix = ">"
+        elif self.format != "ascii 1.0":
+            raise ValueError(f"The format is not valid: {self.format}")
+
+        # Parse data
         for element in self.elements:
             properties = self.elements[element]
+            formats = properties['formats']
             count = properties['count']
-            element_format = '<' + ''.join(properties['formats'])
-            element_size = struct.calcsize(element_format)
-            binary_data = file.read(count * element_size)
-            # Unpack binary data into numpy array
-            properties['data'] = np.array(struct.unpack(f"<{count * len(properties['formats'])}f", binary_data)).reshape(count, -1)
+
+            # ASCII format
+            if self.format == "ascii 1.0":
+                mapped_formats = [self._mappingTypesNP.get(fmt) for fmt in formats]
+                data = []
+                
+                for line_num in range(count):
+                    line = file.readline().strip().split()
+                    if len(line) != len(mapped_formats):
+                        raise ValueError(f"Error parsing data: row {line_num+1} has {len(line)} values, expected {len(mapped_formats)}")
+                    data.append([fmt(l) for fmt, l in zip(mapped_formats, line)])
+                    
+                # Save ASCII data into numpy array
+                properties['data'] = np.array(data)
+                
+            # Little/Big Endian format
+            else:
+                element_format = endian_prefix + ''.join(formats)
+                element_size = struct.calcsize(element_format)
+                binary_data = file.read(count * element_size)
+
+                # Unpack binary data into numpy array
+                properties['data'] = np.array(
+                    struct.unpack(f"<{count * len(properties['formats'])}f", binary_data)
+                ).reshape(count, -1)
 
 
     ####### _normalize_properties #######
@@ -202,9 +334,12 @@ class SplatPLYHandler:
         This is useful when elements may have different property names but represent the same data.
 
         Specifically, renames and reorders the following properties if needed:
-        - normals: from (normal_x, normal_y, normal_z) to (nx, ny, nz).
-        - colors: from (red/r, green/g, blue/b) to (f_dc_0, f_dc_1, f_dc_2).
-        - opacity: from (alpha) to (opacity). This variable is not reordered.
+            - normals: from (normal_x, normal_y, normal_z) to (nx, ny, nz).
+            - colors: from (red/r, green/g, blue/b) to (f_dc_0, f_dc_1, f_dc_2).
+            - opacity: from (alpha) to (opacity). This variable is not reordered.
+
+        Raises:
+            - ValueError: If the are invalid properties.
         """
 
         # Function to reorder each columns
@@ -286,12 +421,14 @@ class SplatPLYHandler:
 
 
     ####### apply_transformation #######
-    def apply_transformation(self,
-                             matrix4d : np.ndarray = None,
-                             rotation_matrix : np.ndarray = None,
-                             translation_vector : np.array = None,
-                             scale_factor : float = np.nan,
-                             element : str = "vertex"):
+    def apply_transformation(
+            self,
+            matrix4d : np.ndarray = None,
+            rotation_matrix : np.ndarray = None,
+            translation_vector : np.array = None,
+            scale_factor : float = np.nan,
+            element : str = "vertex"
+        ):
         """
         Applies a transformation (rotation and/or translation) to the specified element in the PLY file.
 
@@ -313,6 +450,7 @@ class SplatPLYHandler:
             - ValueError: If the element value doesn't exist.
             - ValueError: If the scaling_factor value, when obtained by matrix4d, is non-uniform or equal to zero.
         """
+
         # Ensure that at least one of the arguments rotation_matrix, translation_vector and scale_factor must be provided
         if matrix4d is None and rotation_matrix is None and translation_vector is None and scale_factor is np.nan:
             raise ValueError("At least one of the arguments matrix4d, rotation_matrix, translation_vector and scale_factor must be provided")
@@ -396,21 +534,22 @@ class SplatPLYHandler:
 
 
     ####### align_icp #######
-    def align_icp(self,
-                  other_handler : 'SplatPLYHandler',
-                  voxel_sizes : list = [0.2, 0.1, 0.05],
-                  max_iteration : int = 10000,
-                  distance_threshold_icp : float = np.nan,
-                  max_nn_normals : int = 30,
-                  max_nn_fpfh : int = 100,
-                  voxel_size_factor : float = 1.5,
-                  normals_factor : float = 2.0,
-                  fpfh_factor : float = 5.0,
-                  downsample_voxels : bool = True,
-                  nb_neighbors_outlier: int = 20,
-                  std_ratio_outlier: float = 2.0,
-                  transformation_delta_threshold: float = 1e-4
-                  ) -> np.ndarray:
+    def align_icp(
+            self,
+            other_handler : 'SplatPLYHandler',
+            voxel_sizes : list = [0.2, 0.1, 0.05],
+            max_iteration : int = 10000,
+            distance_threshold_icp : float = np.nan,
+            max_nn_normals : int = 30,
+            max_nn_fpfh : int = 100,
+            voxel_size_factor : float = 1.5,
+            normals_factor : float = 2.0,
+            fpfh_factor : float = 5.0,
+            downsample_voxels : bool = True,
+            nb_neighbors_outlier: int = 20,
+            std_ratio_outlier: float = 2.0,
+            transformation_delta_threshold: float = 1e-4
+        ) -> np.ndarray:
         """
         Method to compute the required transformation in order to align the vertices of this SplatPLYHandler (source)
         to another SplatPLYHandler (target) using ICP. This method builds Open3D point
@@ -444,6 +583,7 @@ class SplatPLYHandler:
         Raises:
             ValueError: If the element value doesn't exist in one of the two handlers.
         """
+
         # Ensure both handlers contain a "vertex" element
         if "vertex" not in self.elements or "vertex" not in other_handler.elements:
             raise ValueError("Both handlers must contain a 'vertex' element.")
@@ -491,20 +631,26 @@ class SplatPLYHandler:
             pcd2 = pcd2.remove_statistical_outlier(nb_neighbors=nb_neighbors_outlier, std_ratio=std_ratio_outlier)[0]
 
             # Estimate normals for both point clouds (required for point-to-plane ICP)
-            pcd1.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(
-                radius = normals_factor * voxel_size,
-                max_nn = max_nn_normals))
-            pcd2.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(
-                radius = normals_factor * voxel_size,
-                max_nn = max_nn_normals))
+            pcd1.estimate_normals(
+                search_param=o3d.geometry.KDTreeSearchParamHybrid(
+                    radius = normals_factor * voxel_size,
+                    max_nn = max_nn_normals
+                ))
+            pcd2.estimate_normals(
+                search_param=o3d.geometry.KDTreeSearchParamHybrid(
+                    radius = normals_factor * voxel_size,
+                    max_nn = max_nn_normals
+                ))
 
             # Compute FPFH features for both point clouds using the method defined earlier
-            fpfh1 = o3d.pipelines.registration.compute_fpfh_feature(pcd1,
-                                                                    o3d.geometry.KDTreeSearchParamHybrid(radius = fpfh_factor * voxel_size,
-                                                                                                         max_nn = max_nn_fpfh))
-            fpfh2 = o3d.pipelines.registration.compute_fpfh_feature(pcd2,
-                                                                    o3d.geometry.KDTreeSearchParamHybrid(radius = fpfh_factor * voxel_size,
-                                                                                                         max_nn = max_nn_fpfh))
+            fpfh1 = o3d.pipelines.registration.compute_fpfh_feature(
+                pcd1,
+                o3d.geometry.KDTreeSearchParamHybrid(radius = fpfh_factor * voxel_size,
+                                                     max_nn = max_nn_fpfh))
+            fpfh2 = o3d.pipelines.registration.compute_fpfh_feature(
+                pcd2,
+                o3d.geometry.KDTreeSearchParamHybrid(radius = fpfh_factor * voxel_size,
+                                                     max_nn = max_nn_fpfh))
 
             # Fast Global Registration (FGR) for an initial alignment
             distance_threshold = voxel_size * voxel_size_factor
@@ -536,12 +682,14 @@ class SplatPLYHandler:
 
 
     ####### change_colors #######
-    def change_colors(self,
-                      rgb : list,
-                      alpha : float = np.nan,
-                      element : str = "vertex",
-                      mode : int = 0,
-                      indexes : list = []):
+    def change_colors(
+            self,
+            rgb : list,
+            alpha : float = np.nan,
+            element : str = "vertex",
+            mode : int = 0,
+            indexes : list = []
+        ):
         """
         Changes the colors of the vertices in the PLY file based on the provided RGB 
         values and alpha (optional). Colors can be applied either globally to all vertices 
@@ -638,16 +786,17 @@ class SplatPLYHandler:
 
 
     ####### compare_and_merge #######
-    def compare_and_merge(self,
-                          other_handler : 'SplatPLYHandler',
-                          element : str = "vertex",
-                          threshold: float = 0.001,
-                          rgb1 : list = [1.0, 0.0, 0.0],
-                          rgb2 : list = [0.0, 1.0, 0.0],
-                          alpha1 : float = np.nan,
-                          alpha2 : float = np.nan,
-                          mode=0
-                          ) -> 'SplatPLYHandler':
+    def compare_and_merge(
+            self,
+            other_handler : 'SplatPLYHandler',
+            element : str = "vertex",
+            threshold: float = 0.001,
+            rgb1 : list = [1.0, 0.0, 0.0],
+            rgb2 : list = [0.0, 1.0, 0.0],
+            alpha1 : float = np.nan,
+            alpha2 : float = np.nan,
+            mode=0
+        ) -> 'SplatPLYHandler':
         """
         Compares two SplatPLYHandler based on the positions of their vertices (or other elements) and
         merges them by keeping and coloring points that are different. 
@@ -675,6 +824,7 @@ class SplatPLYHandler:
             - ValueError: If the element value doesn't exist in one of the two handlers.
             - ValueError: If the two handlers have different element properties.
         """
+
         # Ensured RGB values (and Alpha values) are valid
         if not (all(0.0 <= c <= 1.0 for c in rgb1) and all(0.0 <= c <= 1.0 for c in rgb2)):
             raise ValueError("The provided rgb1 or rgb2 values must be between 0.0 and 1.0")
@@ -726,14 +876,18 @@ class SplatPLYHandler:
 
         # Update colors of mismatched points (if needed)
         if len(mismatch_indixes_p1) > 0:
-            merged_handler.change_colors(rgb = rgb1,
-                                         alpha = alpha1,
-                                         mode = mode,
-                                         indexes = mismatch_indixes_p1)
+            merged_handler.change_colors(
+                rgb = rgb1,
+                alpha = alpha1,
+                mode = mode,
+                indexes = mismatch_indixes_p1
+            )
         if len(mismatch_indixes_p2) > 0:
-            merged_handler.change_colors(rgb = rgb2,
-                                         alpha = alpha2,
-                                         mode = mode,
-                                         indexes = range(len(points1), merged_data.shape[0]))
+            merged_handler.change_colors(
+                rgb = rgb2,
+                alpha = alpha2,
+                mode = mode,
+                indexes = range(len(points1), merged_data.shape[0])
+            )
 
         return merged_handler
