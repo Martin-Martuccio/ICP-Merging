@@ -6,7 +6,98 @@ from plyfile import PlyData, PlyElement
 import open3d as o3d
 import numpy as np
 '''
-import SplatPLYHandler
+from SplatPLYHandler import SplatPLYHandler
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import os
+
+class PLYProcessorGUI:
+    def __init__(self, master):
+        self.master = master
+        master.title("PLY Model Processor")
+        
+        # Variabili per i percorsi dei file
+        self.file1_path = ""
+        self.file2_path = ""
+        self.output_path = os.path.abspath("../data/output/merged_model.ply")
+
+        # Widget GUI
+        self.label = tk.Label(master, text="Select two PLY files to process")
+        self.label.grid(row=0, column=0, columnspan=3, pady=10)
+
+        # Pulsante per il primo file
+        self.btn_file1 = tk.Button(master, text="Load the first model", command=self.load_file1)
+        self.btn_file1.grid(row=1, column=0, padx=5)
+        self.label_file1 = tk.Label(master, text="No file selected")
+        self.label_file1.grid(row=1, column=1, columnspan=2, sticky="w")
+
+        # Pulsante per il secondo file
+        self.btn_file2 = tk.Button(master, text="Load the second model", command=self.load_file2)
+        self.btn_file2.grid(row=2, column=0, padx=5)
+        self.label_file2 = tk.Label(master, text="No file selected")
+        self.label_file2.grid(row=2, column=1, columnspan=2, sticky="w")
+
+        # Pulsante di elaborazione
+        self.btn_process = tk.Button(master, text="Process the models", command=self.process_files)
+        self.btn_process.grid(row=3, column=0, columnspan=3, pady=10)
+
+        # Pulsante per aprire l'output
+        self.btn_open = tk.Button(master, text="Apri Output", command=self.open_output, state=tk.DISABLED)
+        self.btn_open.grid(row=4, column=0, columnspan=3, pady=5)
+
+        # Status label
+        self.status_label = tk.Label(master, text="")
+        self.status_label.grid(row=5, column=0, columnspan=3)
+
+    def load_file1(self):
+        self.file1_path = filedialog.askopenfilename(filetypes=[("PLY files", "*.ply")])
+        self.label_file1.config(text=self.file1_path.split("/")[-1])
+
+    def load_file2(self):
+        self.file2_path = filedialog.askopenfilename(filetypes=[("PLY files", "*.ply")])
+        self.label_file2.config(text=self.file2_path.split("/")[-1])
+
+    def process_files(self):
+        if not self.file1_path or not self.file2_path:
+            messagebox.showerror("Error", "Select two PLY files to process! ")
+            return
+
+        try:
+            self.status_label.config(text="Loading...")
+            self.master.update()
+
+            # Elaborazione dei file
+            handler1 = SplatPLYHandler()
+            handler2 = SplatPLYHandler()
+
+            handler1.load_ply(self.file1_path)
+            handler2.load_ply(self.file2_path)
+
+            transformation = handler2.align_icp(handler1)
+            handler2.apply_transformation(matrix4d=transformation)
+            merged_handler = handler1.compare_and_merge(handler2, mode=1)
+            
+            # Crea la cartella output se non esiste
+            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+            merged_handler.save_ply(self.output_path)
+
+            self.btn_open.config(state=tk.NORMAL)
+            self.status_label.config(text="Elaborazione completata!")
+            
+        except Exception as e:
+            messagebox.showerror("Errore", str(e))
+            self.status_label.config(text="Errore durante l'elaborazione")
+
+    def open_output(self):
+        if os.path.exists(self.output_path):
+            try:
+                os.startfile(self.output_path)  # Per Windows
+            except:
+                import subprocess
+                subprocess.call(("open", self.output_path))  # Per macOS
+                # Per Linux usare 'xdg-open'
+        else:
+            messagebox.showerror("Errore", "File output non trovato!")
 
 if __name__ == "__main__":
 
@@ -53,22 +144,6 @@ if __name__ == "__main__":
     o3d.visualization.draw_geometries([pcd], window_name="Merged Model")
     '''
 
-    # Create an instance of SplatPLYHandler
-    handler1 = SplatPLYHandler()
-    handler2 = SplatPLYHandler()
-
-    # Load two PLY files
-    handler1.load_ply("../data/input/SatiroEBaccante_broken2.ply")
-    handler2.load_ply("../data/input/SatiroEBaccante_broken.ply")
-    
-    # Calculate the alignment
-    transformation = handler2.align_icp(handler1)
-    
-    # Align the second PLY
-    handler2.apply_transformation(matrix4d = transformation)
-    
-    # Compare the two PLY files
-    merged_handler = handler1.compare_and_merge(handler2, mode = 1)
-    
-    # Save the resulting PLY file
-    merged_handler.save_ply("../data/output/merged_model.ply")
+    root = tk.Tk()
+    gui = PLYProcessorGUI(root)
+    root.mainloop()
