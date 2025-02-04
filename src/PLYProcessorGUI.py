@@ -77,7 +77,7 @@ class PLYProcessorGUI:
         self.main_frame.grid(row=0, column=0, sticky="nsew")
 
         # Add UniGe logo
-        self.add_logo("../images/unige_logo.png")
+        self.add_logo("../images/logo_unige.png")
 
         # Widget GUI
         self.label = tk.Label(master)
@@ -182,7 +182,7 @@ class PLYProcessorGUI:
     
     def viewer_link(self):
         import webbrowser
-        webbrowser.open("https://github.com/biaperass/Gaussian-Splatting-WebGL")
+        webbrowser.open("https://biaperass.github.io/Gaussian-Splatting-WebGL/")
 
     def add_logo(self, image_path):
         try:
@@ -190,7 +190,7 @@ class PLYProcessorGUI:
             
             # Resize the image (example: 100px width, proportional height)
             width, height = original_image.size
-            new_width = 100
+            new_width = 200
             new_height = int((new_width / width) * height)
             resized_image = original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
             
