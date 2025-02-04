@@ -784,6 +784,42 @@ class SplatPLYHandler:
             else:
                 data[indexes[:, None], alpha_column] = alpha
 
+    ####### compare 
+    def compare_points(self, other_handler, threshold=0.01):
+        """
+        Confronta i punti tra questo modello e l'altro e restituisce le distanze tra i punti diversi.
+        
+        Args:
+            other_handler (SplatPLYHandler): L'altro oggetto SplatPLYHandler da confrontare.
+            threshold (float): Soglia di distanza per considerare due punti diversi.
+        
+        Returns:
+            list: Lista delle distanze tra i punti diversi.
+        """
+        if "vertex" not in self.elements or "vertex" not in other_handler.elements:
+            raise ValueError("Entrambi gli handler devono contenere un elemento 'vertex'.")
+        
+        # Estrai i punti dai dati dei vertici
+        properties = self.elements["vertex"]["properties"]
+        columns = [properties.index("float x"), properties.index("float y"), properties.index("float z")]
+        points1 = self.elements["vertex"]["data"][:, columns]
+        points2 = other_handler.elements["vertex"]["data"][:, columns]
+
+        # Crea un KDTree per i punti del secondo modello
+        pcd2 = o3d.geometry.PointCloud()
+        pcd2.points = o3d.utility.Vector3dVector(points2)
+        tree2 = o3d.geometry.KDTreeFlann(pcd2)
+
+        diff_distances = []
+
+        # Trova i punti nel primo modello senza un corrispondente nel secondo
+        for i, point in enumerate(points1):
+            [_, idx, dist] = tree2.search_knn_vector_3d(point, 1)  # Trova il punto più vicino
+            if dist[0] > threshold**2:  # Confronta con la soglia (usando la distanza al quadrato per evitare sqrt)
+                diff_distances.append(np.sqrt(dist[0]))  # Aggiungi la distanza reale
+
+        return diff_distances
+
 
     ####### compare_and_merge #######
     def compare_and_merge(
