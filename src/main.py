@@ -12,6 +12,7 @@ from tkinter import ttk,filedialog, messagebox, colorchooser
 import numpy as np
 import os
 import time  
+from PIL import Image, ImageTk
 
 class CreateToolTip(object):
     """
@@ -82,6 +83,9 @@ class PLYProcessorGUI:
         # Frame principale
         self.main_frame = ttk.Frame(master, padding="20")
         self.main_frame.grid(row=0, column=0, sticky="nsew")
+
+        # Aggiungi un'immagine (logo)
+        self.add_logo()
 
         # Widget GUI
         self.label = tk.Label(master)
@@ -177,6 +181,26 @@ class PLYProcessorGUI:
         # Status label
         self.status_label = ttk.Label(self.main_frame, text="Ready", foreground="#333")
         self.status_label.grid(row=7, column=0, columnspan=3)
+
+    def add_logo(self):
+        try:
+            image_path = "C:/Users/bianc/Downloads/logo_unige.png"  
+            original_image = Image.open(image_path)
+            
+            # Ridimensiona l'immagine (esempio: larghezza 200px, altezza proporzionale)
+            width, height = original_image.size
+            new_width = 200
+            new_height = int((new_width / width) * height)
+            resized_image = original_image.resize((new_width, new_height), Image.ANTIALIAS)
+            
+            # Converte l'immagine in un formato compatibile con Tkinter
+            self.logo_image = ImageTk.PhotoImage(resized_image)
+            
+            # Crea un widget Label per visualizzare l'immagine
+            logo_label = tk.Label(self.main_frame, image=self.logo_image, bg="#f0f0f0")
+            logo_label.grid(row=0, column=0, columnspan=3, pady=(0, 10))  # Posiziona sopra gli altri elementi
+        except Exception as e:
+            print(f"Errore durante il caricamento del logo: {e}")    
 
     def load_file1(self):
         self.file1_path = filedialog.askopenfilename(filetypes=[("PLY files", "*.ply")])
