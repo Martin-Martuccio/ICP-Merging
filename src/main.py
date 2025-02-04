@@ -144,6 +144,9 @@ if __name__ == "__main__":
     o3d.visualization.draw_geometries([pcd], window_name="Merged Model")
     '''
 
+    source_path = "../data/input/SatiroEBaccante_broken2.ply"
+    target_path = "../data/input/SatiroEBaccante_broken.ply"
+
     root = tk.Tk()
     gui = PLYProcessorGUI(root)
     root.mainloop()
