@@ -1,52 +1,60 @@
-import struct
 import numpy as np
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
 class SplatPLYHandler:
     """
-    A class for handling and manipulating PLY (Polygon File Format) and SPLAT PLY (3D Gaussian splatting) files.
+    A class for handling and manipulating SPLAT PLY (3D Gaussian splatting) files.
 
     This class provides methods to:
-    - Load and parse PLY files in binary little-endian format, binary big-endian format and ascii format.
-    - Save modified PLY files with updated elements and properties.
+    - Load and parse SPLAT PLY files in binary little-endian format, binary big-endian format and ascii format.
+    - Save modified SPLAT PLY files with updated elements and properties.
     - Normalize and standardize property names for consistency.
-    - Apply transformations (rotation, translation) to vertex positions and normals.
+    - Apply transformations to vertex positions, normals, scales and quaternions.
     - Perform ICP-based point cloud alignment.
     - Modify vertex colors based on given RGB values.
-    - Compare and merge two PLY files based on vertex positions and a distance threshold.
+    - Compare and merge two SPLAT PLY files based on vertex positions and a distance threshold.
 
-    The class works primarily with binary PLY files that contain elements such as vertices and their
+    The class works primarily with SPLAT PLY files that contain elements such as vertices and their
     properties (positions, normals, colors, etc.), supporting operations like structured reading, writing,
     and transformation.
 
     Attributes:
-        - format (str): The format of the PLY file (default: "binary_little_endian 1.0").
+        - format (str): The format of the SPLAT PLY file.
         - elements (dict): Dictionary storing element properties, formats, and binary data.
-        - comments (list): List of comments found in the PLY file.
+        - comments (list): List of comments found in the SPLAT PLY file.
     """
 
 
     ####### init #######
-    def __init__(self):
+    def __init__(
+            self,
+            filepath: str = "",
+            normalize : bool = True
+        ):
         """
-        Initializes the SplatPLYHandler object. This function sets the default PLY format
+        Initializes the SplatPLYHandler object. This function sets the default SPLAT PLY format
         to 'binary_little_endian 1.0' and prepares the necessary data structures for handling 
-        PLY file elements, their properties, and associated binary data.
+        SPLAT PLY file elements, their properties, and associated binary data.
+        If filepath is passed then the file will be automatically loaded.
 
         Initializes:
-            - format: Default PLY format.
+            - format: The format of the SPLAT PLY file (default is "binary_little_endian 1.0").
             - elements: Dictionary to store element properties (e.g., vertices, faces).
-            - comments: List to store comments in the PLY file.
-            - _mappingPLYTypes: Mapping from PLY property types to struct formats for binary parsing.
-            - _inv_SH_C0: Precomputed inverse of the first spherical harmonic coefficient.
+            - comments: List to store comments in the SPLAT PLY file.
+
+        Args:
+            - filepath (str, optional): Path to the SPLAT PLY file to be loaded.
+            - normalize_properties (bool, optional): If True the properties will be "normalized"
+                                                     with respect to the standard (default is True).
+
         """
 
-        self.format = "binary_little_endian 1.0"  # Default format for splat PLY
+        self.format = "binary_little_endian 1.0"  # Default format for SPLAT PLY
         self.elements = {}  # Dictionary to store elements and their properties
         self.comments = []  # List to store comments
 
-        # Define the mapping between PLY property types and struct formats
+        # Define the mapping between SPLAT PLY property types and struct formats
         self._mappingPLYTypes = {
             "char":   "c", # 'c' 1-byte character
             "uchar":  "B", # 'B' 1-byte unsigned char
@@ -79,6 +87,13 @@ class SplatPLYHandler:
         # Degree 3: 16 harmonics needed (48 floats) per gaussian
         self._inv_SH_C0 = 1 / 0.28209479177387814
 
+        # If filepath is passed then load automatically the file
+        if filepath != "":
+            self.load_ply(
+                filepath = filepath,
+                normalize = normalize
+            )
+
 
     ####### load_ply #######
     def load_ply(
@@ -87,28 +102,31 @@ class SplatPLYHandler:
             normalize : bool = True
         ):
         """
-        Loads a PLY file, parses its header, and reads its data into appropriate structures
+        Loads a SPLAT PLY file, parses its header, and reads its data into appropriate structures
         for further manipulation.
 
         Args:
-            - filepath (str): Path to the PLY file to be loaded.
+            - filepath (str): Path to the SPLAT PLY file to be loaded.
             - normalize_properties (bool, optional): If True the properties will be "normalized"
                                                      with respect to the standard (default is True).
 
         Processes:
-            - Parses the PLY header to extract format, comments, elements, and properties.
+            - Parses the SPLAT PLY header to extract format, comments, elements, and properties.
             - Reads the data for each element into numpy arrays.
             - Normalizes the properties for consistency.
 
         Raises:
-            ValueError: If the format of the file is not valid.
+            - FileNotFoundError: If the file was not found.
+            - ValueError: If the format of the file is not valid.
         """
 
-        header_end = -1
+        # Reset variables
+        self.elements = {}
+        self.comments = []
 
+        header_end = -1
         with open(filepath, 'rb') as file:
             lines = []
-            header_check = True
 
             # Read header line by line until "end_header"
             while True:
@@ -116,10 +134,9 @@ class SplatPLYHandler:
                 lines.append(line)
                 if line == "end_header":
                     header_end = file.tell()
-                    header_check = False
                     break
 
-            if header_check:
+            if header_end <= 0:
                 raise ValueError(f"The file is not well-formatted.")
 
             # Parse the header to extract format, comments, and elements
@@ -136,8 +153,6 @@ class SplatPLYHandler:
         with open(filepath, mode) as file:
             # Skip header
             file.seek(header_end)
-            #for _ in lines:
-            #    file.readline()
 
             # Parse the data to extract elements with their properties
             self._parse_data(file)
@@ -150,15 +165,15 @@ class SplatPLYHandler:
     ####### save_ply #######
     def save_ply(self, filepath: str):
         """
-        Saves the current PLY data to a new PLY file.
+        Saves the current SPLAT PLY data to a new SPLAT PLY file.
 
         Args:
-            filepath (str): Path to save the output PLY file. If the file already exists it
-                            will be overwritten.
+            filepath (str): Path to save the output SPLAT PLY file. If the file
+                            already exists it will be overwritten.
         
         Writes:
-            - A new PLY header based on the updated properties.
-            - Data for each element in the PLY file.
+            - A new SPLAT PLY header based on the updated properties.
+            - Data for each element in the SPLAT PLY file.
 
         Raises:
             - ValueError: If the format of the file is not valid.
@@ -184,7 +199,7 @@ class SplatPLYHandler:
             header_lines.extend(f"comment {comment}" for comment in self.comments)
             for element, properties in self.elements.items():
                 header_lines.append(f"element {element} {properties['count']}")
-                header_lines.extend(f"property {prop}" for prop in properties['properties'])
+                header_lines.extend(f"property {prop}" for prop in properties["properties"])
             header_lines.append("end_header")
             if mode == 'w':
                 file.write("\n".join(header_lines) + "\n")
@@ -193,7 +208,7 @@ class SplatPLYHandler:
 
             # Write data
             for element, properties in self.elements.items():
-                data = properties['data']
+                data = properties["data"]
 
                 # ASCII format
                 if mode == 'w':
@@ -205,16 +220,16 @@ class SplatPLYHandler:
                     # Convert all formats
                     dtypes = []
                     all_equal = True
-                    for idx, fmt in enumerate(properties['formats']):
+                    for idx, fmt in enumerate(properties["formats"]):
                         if fmt not in self._mappingPLYTypes.values():
                             raise ValueError(f"Unsupported property type: {fmt}")
                         dtypes.append((f'f{idx}', endian_prefix + fmt))
-                        if fmt != properties['formats'][0]:
+                        if fmt != properties["formats"][0]:
                             all_equal = False
 
                     # If the formats are all the same then use a shortcut
                     if all_equal:
-                        dtype = self._mappingTypesNP.get(properties['formats'][0])
+                        dtype = self._mappingTypesNP.get(properties["formats"][0])
                         np.array(data, dtype=dtype).tofile(file)
                     else:
                         data_tuple = [tuple(row) for row in data]
@@ -224,11 +239,11 @@ class SplatPLYHandler:
     ####### _parse_header #######
     def _parse_header(self, header_lines):
         """
-        Parses the PLY file header to extract information about the elements, properties,
+        Parses the SPLAT PLY file header to extract information about the elements, properties,
         and comments. It also prepares the internal data structures to store this information.
 
         Args:
-            header_lines (list): List of lines from the PLY file header.
+            header_lines (list): List of lines from the SPLAT PLY file header.
 
         Raises:
             - ValueError: If the format of the file is not valid.
@@ -276,11 +291,11 @@ class SplatPLYHandler:
     ####### _parse_data #######
     def _parse_data(self, file):
         """
-        Parses the data section of the PLY file and unpacks it according to the previously
+        Parses the data section of the SPLAT PLY file and unpacks it according to the previously
         extracted element formats. It stores the parsed data in the internal structures.
 
         Args:
-            file (file object): Opened PLY file for reading the data.
+            file (file object): Opened SPLAT PLY file for reading the data.
 
         Raises:
             - ValueError: If the format of the file is not valid.
@@ -298,8 +313,8 @@ class SplatPLYHandler:
         # Parse data
         for element in self.elements:
             properties = self.elements[element]
-            formats = properties['formats']
-            count = properties['count']
+            formats = properties["formats"]
+            count = properties["count"]
 
             # ASCII format
             if self.format == "ascii 1.0":
@@ -313,24 +328,38 @@ class SplatPLYHandler:
                     data.append([fmt(l) for fmt, l in zip(mapped_formats, line)])
                     
                 # Save ASCII data into numpy array
-                properties['data'] = np.array(data)
+                properties["data"] = np.array(data)
                 
             # Little/Big Endian format
             else:
-                element_format = endian_prefix + ''.join(formats)
-                element_size = struct.calcsize(element_format)
-                binary_data = file.read(count * element_size)
+                # Convert all formats
+                dtypes = []
+                all_equal = True
+                for idx, fmt in enumerate(properties["formats"]):
+                    if fmt not in self._mappingPLYTypes.values():
+                        raise ValueError(f"Unsupported property type: {fmt}")
+                    dtypes.append((f'f{idx}', endian_prefix + fmt))
+                    if fmt != properties["formats"][0]:
+                        all_equal = False
 
-                # Unpack binary data into numpy array
-                properties['data'] = np.array(
-                    struct.unpack(f"<{count * len(properties['formats'])}f", binary_data)
-                ).reshape(count, -1)
+                # If the formats are all the same then use a shortcut
+                if all_equal:
+                    np_dtype = self._mappingTypesNP.get(properties["formats"][0])
+                    element_size = np.dtype(np_dtype).itemsize * len(properties["formats"])
+                    data = np.frombuffer(file.read(count * element_size), dtype=np_dtype).reshape(count, -1)
+                else:
+                    dtype_struct = np.dtype(dtypes)
+                    structured_data = np.frombuffer(file.read(count * dtype_struct.itemsize), dtype=dtype_struct)
+                    data = np.column_stack([structured_data[name] for name in structured_data.dtype.names])
+
+                # Save binary data
+                properties["data"] = data.copy()
 
 
     ####### _normalize_properties #######
     def _normalize_properties(self):
         """
-        Normalizes the properties of the PLY elements (e.g., renaming and/or reordering properties).
+        Normalizes the properties of the SPLAT PLY elements (e.g., renaming and/or reordering properties).
         This is useful when elements may have different property names but represent the same data.
 
         Specifically, renames and reorders the following properties if needed:
@@ -362,9 +391,9 @@ class SplatPLYHandler:
             formats[:] = [formats[i] for i in permutation] # Reorder the formats
             
         for element in self.elements:
-            data = self.elements[element]['data']
-            properties = self.elements[element]['properties']
-            formats = self.elements[element]['formats']
+            data = self.elements[element]["data"]
+            properties = self.elements[element]["properties"]
+            formats = self.elements[element]["formats"]
             
             # Check if normals are present and ensure correct property naming
             if "float nx" not in properties:
@@ -430,7 +459,7 @@ class SplatPLYHandler:
             element : str = "vertex"
         ):
         """
-        Applies a transformation (rotation and/or translation) to the specified element in the PLY file.
+        Applies a transformation (rotation and/or translation) to the specified element in the SPLAT PLY file.
 
         Args:
             - matrix4d (np.ndarray, optional): 4x4 transformation matrix for both rotation, translation and uniform scaling.
@@ -455,9 +484,9 @@ class SplatPLYHandler:
         if matrix4d is None and rotation_matrix is None and translation_vector is None and scale_factor is np.nan:
             raise ValueError("At least one of the arguments matrix4d, rotation_matrix, translation_vector and scale_factor must be provided")
         
-        # Ensure there is a "vertex" element
+        # Ensure there is a "element"
         if element not in self.elements:
-            raise ValueError(f"Element '{element}' not found in PLY file")
+            raise ValueError(f"Element '{element}' not found in SPLAT PLY file")
         
         # Check if matrix4d is provided and then extract the rotation, translation and scaling components
         if matrix4d is not None:
@@ -488,8 +517,8 @@ class SplatPLYHandler:
         if np.isclose(scale_factor, 1.0): # Avoid any scaling if scale_factor is equal to 1.0
             scale_factor = np.nan
 
-        data = self.elements[element]['data']
-        properties = self.elements[element]['properties']
+        data = self.elements[element]["data"]
+        properties = self.elements[element]["properties"]
             
         # Apply rotation, translation and/or scaling to points (x, y, z)
         columns = [properties.index("float x"),
@@ -537,6 +566,7 @@ class SplatPLYHandler:
     def align_icp(
             self,
             other_handler : 'SplatPLYHandler',
+            element : str = "vertex",
             voxel_sizes : list = [0.2, 0.1, 0.05],
             max_iteration : int = 10000,
             distance_threshold_icp : float = np.nan,
@@ -558,6 +588,7 @@ class SplatPLYHandler:
 
         Args:
             - other_handler (SplatPLYHandler): The target handler to be aligned to this (source) handler.
+            - element (str, optional): The element used for the alignment.
             - voxel_sizes (list of float, optional): Voxel sizes used to compute iteratively normals and FPFH features.
                                                      (default is [0.2, 0.1, 0.05]).
             - max_iteration (int, optional): Maximum iterations for ICP (default is 10000).
@@ -584,13 +615,13 @@ class SplatPLYHandler:
             ValueError: If the element value doesn't exist in one of the two handlers.
         """
 
-        # Ensure both handlers contain a "vertex" element
-        if "vertex" not in self.elements or "vertex" not in other_handler.elements:
-            raise ValueError("Both handlers must contain a 'vertex' element.")
+        # Ensure both handlers contain "element"
+        if element not in self.elements or element not in other_handler.elements:
+            raise ValueError(f"Both handlers must contain a '{element}' element.")
 
-        # Get the indices for x, y, z in the vertex properties
-        properties1 = self.elements["vertex"]["properties"]
-        properties2 = other_handler.elements["vertex"]["properties"]
+        # Get the indices for x, y, z in the elment properties
+        properties1 = self.elements[element]["properties"]
+        properties2 = other_handler.elements[element]["properties"]
         columns1 = [properties1.index("float x"),
                     properties1.index("float y"),
                     properties1.index("float z")]
@@ -598,9 +629,9 @@ class SplatPLYHandler:
                     properties2.index("float y"),
                     properties2.index("float z")]
 
-        # Extract vertex positions from both handlers
-        points1 = self.elements["vertex"]["data"][:, columns1]
-        points2 = other_handler.elements["vertex"]["data"][:, columns2]
+        # Extract element positions from both handlers
+        points1 = self.elements[element]["data"][:, columns1]
+        points2 = other_handler.elements[element]["data"][:, columns2]
 
         # Homogenize points1 for transformation during the iteration(s)
         points1 = np.hstack((points1, np.ones((points1.shape[0], 1))))
@@ -691,16 +722,15 @@ class SplatPLYHandler:
             indexes : list = []
         ):
         """
-        Changes the colors of the vertices in the PLY file based on the provided RGB 
-        values and alpha (optional). Colors can be applied either globally to all vertices 
-        or selectively based on the provided indexes.
+        Changes the colors of the vertices (or other element) in the SPLAT PLY file based on the provided RGB values
+        and alpha (optional). Colors can be applied either globally or selectively based on the provided indexes.
 
         Args:
             - rgb (list of float): RGB color values as a list of three floats (0.0 to 1.0).
             - alpha (float, optional): Alpha value for transparency (0.0 to 1.0).
             - element (str, optional): The element to which the color change should be applied (default is "vertex").
             - mode (int, optional): Determines how the color should be applied (default is 0).
-            - indexes (list of int, optional): A list of indices to specify which vertices to change.
+            - indexes (list of int, optional): A list of indices to specify which vertices (or specified element) to change.
 
         Raises:
             - ValueError: If the RGB values are out of range.
@@ -716,17 +746,17 @@ class SplatPLYHandler:
         if alpha is not np.nan and not (0.0 <= alpha <= 1.0):
             raise ValueError("Alpha value must be between 0.0 and 1.0")
         
-        # Ensure there is a "vertex" element
+        # Ensure there is "element"
         if element not in self.elements:
-            raise ValueError(f"Element '{element}' not found in PLY file")
+            raise ValueError(f"Element '{element}' not found in SPLAT PLY file")
         
         # Ensure indexes does not contain an index out of bounds
         indexes = np.array(indexes)
-        if indexes.size > 0 and self.elements[element]['count'] <= indexes.max():
+        if indexes.size > 0 and self.elements[element]["count"] <= indexes.max():
             raise ValueError(f"Indexes cannot be greater than the number of element '{element}'")
             
-        data = self.elements[element]['data']
-        properties = self.elements[element]['properties']
+        data = self.elements[element]["data"]
+        properties = self.elements[element]["properties"]
             
         # Normalize f_dc components and rescale to new color
         color_columns = [properties.index("float f_dc_0"),
@@ -784,39 +814,58 @@ class SplatPLYHandler:
             else:
                 data[indexes[:, None], alpha_column] = alpha
 
-    ####### compare 
-    def compare_points(self, other_handler, threshold=0.01):
+   ####### compare_points #######
+    def compare_points(
+            self,
+            other_handler : 'SplatPLYHandler',
+            element : str = "vertex",
+            threshold : float = 0.01
+        ) -> list:
         """
-        Confronta i punti tra questo modello e l'altro e restituisce le distanze tra i punti diversi.
+        Compares two SplatPLYHandler based on the positions of their vertices (or other elements) and
+        returns the distance between those points. 
         
         Args:
-            other_handler (SplatPLYHandler): L'altro oggetto SplatPLYHandler da confrontare.
-            threshold (float): Soglia di distanza per considerare due punti diversi.
+            - other_handler (SplatPLYHandler): Another instance of the SplatPLYHandler to compare with.
+            - element (str, optional): The element to which the color change should be applied (default is "vertex").
+            - threshold (float, optional): The distance threshold for considering points as mismatched.
         
         Returns:
-            list: Lista delle distanze tra i punti diversi.
-        """
-        if "vertex" not in self.elements or "vertex" not in other_handler.elements:
-            raise ValueError("Entrambi gli handler devono contenere un elemento 'vertex'.")
-        
-        # Estrai i punti dai dati dei vertici
-        properties = self.elements["vertex"]["properties"]
-        columns = [properties.index("float x"), properties.index("float y"), properties.index("float z")]
-        points1 = self.elements["vertex"]["data"][:, columns]
-        points2 = other_handler.elements["vertex"]["data"][:, columns]
+            list: List of distances between different points.
 
-        # Crea un KDTree per i punti del secondo modello
+        Raises:
+            - ValueError: If the rgb1 or rgb2 values are out of range.
+            - ValueError: If the alpha1 or alpha2 value is out of range.
+            - ValueError: If the element value doesn't exist in one of the two handlers.
+            - ValueError: If the two handlers have different element properties.
+        """
+        # Ensure both handlers contain "element"
+        if element not in self.elements or element not in other_handler.elements:
+            raise ValueError(f"Both handlers must contain a '{element}' element.")
+        
+        # Retrieve data from the two handlers
+        properties1 = self.elements[element]["properties"]
+        properties2 = other_handler.elements[element]["properties"]
+        columns1 = [properties1.index("float x"),
+                    properties1.index("float y"),
+                    properties1.index("float z")]
+        columns2 = [properties2.index("float x"),
+                    properties2.index("float y"),
+                    properties2.index("float z")]
+
+        # Extract element positions from both handlers
+        points1 = self.elements[element]["data"][:, columns1]
+        points2 = other_handler.elements[element]["data"][:, columns2]
+
+        # Convert points in Open3D PointCloud format for spatial matching and build KDTree for points2
         pcd2 = o3d.geometry.PointCloud()
         pcd2.points = o3d.utility.Vector3dVector(points2)
         tree2 = o3d.geometry.KDTreeFlann(pcd2)
 
-        diff_distances = []
-
-        # Trova i punti nel primo modello senza un corrispondente nel secondo
-        for i, point in enumerate(points1):
-            [_, idx, dist] = tree2.search_knn_vector_3d(point, 1)  # Trova il punto più vicino
-            if dist[0] > threshold**2:  # Confronta con la soglia (usando la distanza al quadrato per evitare sqrt)
-                diff_distances.append(np.sqrt(dist[0]))  # Aggiungi la distanza reale
+        # Find points in the first handler without a match in the second one
+        distances = [tree2.search_knn_vector_3d(point, 1)[2][0] for point in points1] # Find closest point
+        # Calculate the actual distance and compare to threshold (using distance squared to avoid sqrt)
+        diff_distances = [np.sqrt(dist) for dist in distances if dist > threshold ** 2]
 
         return diff_distances
 
@@ -839,16 +888,16 @@ class SplatPLYHandler:
 
         Args:
             - other_handler (SplatPLYHandler): Another instance of the SplatPLYHandler to compare with.
-            - element (str, optional): The element to compare (default is "vertex").
+            - element (str, optional): The element to which the color change should be applied (default is "vertex").
             - threshold (float, optional): The distance threshold for considering points as mismatched.
             - rgb1 (list of float, optional): RGB color for missing/removed parts, values as a list of three
                                               floats from 0.0 to 1.0 (default is Red = [1.0, 0.0, 0.0]).
             - rgb2 (list of float, optional): RGB color for extra/added parts, values as a list of three
                                               floats from 0.0 to 1.0 (default is Green = [0.0, 1.0, 0.0]).
             - alpha1 (float, optional): Alpha value (0.0 to 1.0) for transparency of mismatched points
-                                        (missing/removed parts) in the first PLY file.
+                                        (missing/removed parts) in the first SPLAT PLY file.
             - alpha2 (float, optional): Alpha value (0.0 to 1.0) for transparency of mismatched points
-                                        (extra/added parts) in the second PLY file.
+                                        (extra/added parts) in the second SPLAT PLY file.
             - mode (int, optional): Determines how to apply color changes (default is 0).
         
         Returns:
@@ -860,16 +909,16 @@ class SplatPLYHandler:
             - ValueError: If the element value doesn't exist in one of the two handlers.
             - ValueError: If the two handlers have different element properties.
         """
-
+        
         # Ensured RGB values (and Alpha values) are valid
         if not (all(0.0 <= c <= 1.0 for c in rgb1) and all(0.0 <= c <= 1.0 for c in rgb2)):
             raise ValueError("The provided rgb1 or rgb2 values must be between 0.0 and 1.0")
         if any(a is not np.nan and not (0.0 <= a <= 1.0) for a in [alpha1, alpha2]):
             raise ValueError("The provided alpha1 or alpha2 value must be between 0.0 and 1.0")
         
-        # Ensure both handlers contain a "vertex" element
-        if "vertex" not in self.elements or "vertex" not in other_handler.elements:
-            raise ValueError("Both handlers must contain a 'vertex' element.")
+        # Ensure both handlers contain "element"
+        if element not in self.elements or element not in other_handler.elements:
+            raise ValueError(f"Both handlers must contain a '{element}' element.")
         
         # Ensure both handlers have identical properties for the specified element
         if self.elements[element]['properties'] != other_handler.elements[element]['properties']:
@@ -881,9 +930,9 @@ class SplatPLYHandler:
         merged_handler.elements = self.elements.copy()
 
         # Retrieve data from the two handlers
-        properties = self.elements[element]['properties']
-        data1 = self.elements[element]['data']
-        data2 = other_handler.elements[element]['data']
+        properties = self.elements[element]["properties"]
+        data1 = self.elements[element]["data"]
+        data2 = other_handler.elements[element]["data"]
 
         columns = [properties.index("float x"),
                    properties.index("float y"),
@@ -905,10 +954,10 @@ class SplatPLYHandler:
         tree1 = o3d.geometry.KDTreeFlann(pcd1)
         mismatch_indixes_p2 = [i for i in range(len(points2)) if tree1.search_knn_vector_3d(pcd2.points[i], 1)[2][0] > threshold]
 
-        # Merge the data (only add unmatched points from the second PLY in order to avoid duplicates)
+        # Merge the data (only add unmatched points from the second SPLAT PLY in order to avoid duplicates)
         merged_data = np.concatenate((data1, data2[mismatch_indixes_p2, :]), axis=0)
-        merged_handler.elements[element]['count'] = merged_data.shape[0]
-        merged_handler.elements[element]['data'] = merged_data
+        merged_handler.elements[element]["count"] = merged_data.shape[0]
+        merged_handler.elements[element]["data"] = merged_data
 
         # Update colors of mismatched points (if needed)
         if len(mismatch_indixes_p1) > 0:
@@ -927,3 +976,4 @@ class SplatPLYHandler:
             )
 
         return merged_handler
+    

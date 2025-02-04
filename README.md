@@ -2,20 +2,21 @@
 
 ## Overview
 
-This project implements the **Iterative Closest Point (ICP)** algorithm to merge two 3D models in PLY format, including those generated using **Gaussian Splatting**. The ICP algorithm aligns and merges the models by minimizing the differences between their point clouds. The resulting merged model highlights differences between the two input models, with **green** indicating "new" parts and **red** indicating "eroded" parts. This is particularly useful for **cultural heritage** applications, where it can help visualize changes over time.
+This project implements the **Iterative Closest Point (ICP)** algorithm to merge two 3D models in Splat PLY format, those generated using **Gaussian Splatting**. The ICP algorithm aligns and merges the models by minimizing the differences between their point clouds. The resulting merged model highlights differences between the two input models, with **green** indicating "new" parts and **red** indicating "eroded" parts. This is particularly useful for **cultural heritage** applications, where it can help visualize changes over time.
 
-The project manipulates Gaussian Splatting PLY files using a custom class called `SplatPLYHandler`, performing manual extraction, merging, custom file creation and additional features (require higher computational resources). It also supports PLY files.
+The project manipulates Gaussian Splatting PLY files using a custom class called `SplatPLYHandler`, performing manual extraction, merging, custom file creation and additional features (require higher computational resources).
 
 ---
 
 ## Features
 
 - **ICP Alignment**: Aligns two 3D models using the Iterative Closest Point algorithm.
-- **PLY File Support**: Handles both standard Gaussian Splatting PLY files and PLY files.
+- **Splat PLY File Support**: Handles standard Gaussian Splatting PLY files (Splat PLY).
 - **Difference Highlighting**: Visualizes differences between the models using colors:
   - **Green**: Represents "new" parts (additions).
   - **Red**: Represents "eroded" parts (removals).
 - **Gaussian Splatting Compatibility**: Supports advanced Gaussian Splatting PLY files for enhanced 3D representation.
+- **Interactive GUI**: Using a small GUI you can interact with the project without having to code anything.
 
 ---
 
@@ -28,10 +29,32 @@ The project manipulates Gaussian Splatting PLY files using a custom class called
     cd ICP-Merging
     ```
 
-2. Install the required dependencies:
+2. Install tkinter (required for the Interactive GUI):
+
+  - For Ubuntu users:
 
     ```sh
-    pip install -r requirements.yml
+    apt-get install python3-tk
+    ```
+
+  - For Fedora users:
+
+    ```sh
+    dnf install python3-tkinter
+    ```
+
+3. Install Anaconda (if you prefer Miniconda just change every "Anaconda3" with "Miniconda3"):
+
+    ```sh
+    wget https://repo.anaconda.com/archive/Anaconda3-latest-Linux-x86_64.sh
+    bash ~/Anaconda3-latest-Linux-x86_64.sh
+    ```
+
+4. Create conda enviroment in order to install the required dependencies:
+
+    ```sh
+    conda env create -f environment.yml
+    conda activate icp_merging
     ```
 
 # Usage
@@ -42,24 +65,23 @@ Place your PLY files (standard or Gaussian Splatting) in the input folder (`data
 
 ## Run the ICP-Merging Script
 
-- Open the `main.py` file and update the paths to your input models:
-  
-  ```sh
-    source_path = "data/input/model1.ply"
-    target_path = "data/input/model2.ply"
-  ```
-  
-- Run the script:
+- Inside `src/` run the script in order to open the GUI:
   
   ```sh
     python main.py
   ```
 
+<img src="images/GUI_Example.png" alt="Interactive GUI" width="300"/>
+
+- Click on the buttons `Load Model 1` and `Load Model 2` in order to choose the two Splat PLY files to confront.
+- Customize each Parameter (optional).
+- Click on the button `Process Models` and wait (for files of ∼200 MB it takes about 15 seconds).
+
 ## Output
 
 - The merged model will be saved as `merged_model.ply` in the output folder (`data/output/`).
   
-- Differences between the models will be highlighted in green (new parts) and red (eroded parts).
+- By default, differences between the models will be highlighted in green (new parts) and red (eroded parts).
   
 # Example Workflow
 
@@ -88,7 +110,9 @@ We took the [Satiro e Baccante](https://poly.cam/capture/5621D36B-36BF-4655-AE5C
 
 ## Output
 
-- A single PLY file (`merged_model.ply`) is created, showing the aligned models with highlighted differences.
+- A single Splat PLY file (`merged_model.ply`) is created, showing the aligned models with highlighted differences.
+
+- To see the merged model this custom viewer is available: [Gaussian Splatting WebGL](https://github.com/biaperass/Gaussian-Splatting-WebGL)
 
 # Gaussian Splatting Support
 
@@ -99,14 +123,6 @@ For more information on Gaussian Splatting, refer to:
 - [Gaussian Splatting - Wikipedia](https://en.wikipedia.org/wiki/Gaussian_splatting)
   
 - [Gaussian Splatting Paper (arXiv)](https://arxiv.org/abs/2308.04079)
-  
-# Future Work
-
-- **Support for Splat PLY Files:** Enhance the project to handle Gaussian Splatting PLY files with additional features.
-  
-- **Performance Optimization:** Reduce computational costs for large models.
-  
-- **User Interface:** Develop a graphical interface for easier model selection, visualization and iteration.
   
 # Collaborators
 
