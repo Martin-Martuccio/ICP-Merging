@@ -71,7 +71,9 @@ Place your PLY files (standard or Gaussian Splatting) in the input folder (`data
     python main.py
   ```
 
-<img src="images/GUI_Example.png" alt="Interactive GUI" width="300"/>
+<p align="center">
+  <img src="images/GUI_Example.png" alt="Interactive GUI" width="300"/>
+</p>
 
 - Click on the buttons `Load Model 1` and `Load Model 2` in order to choose the two Splat PLY files to confront.
 - Customize each Parameter (optional).
@@ -97,16 +99,22 @@ We took the [Satiro e Baccante](https://poly.cam/capture/5621D36B-36BF-4655-AE5C
 
 - The ICP algorithm aligns the two models.
 
-| <img src="images/ICP_Before.png" alt="Before ICP" width="300"/> | <img src="images/ICP_After.png" alt="After ICP" width="200"/> |
-|-------------------------------------------------------------|---------------------------------------------------------------|
-  
+<div align="center">
+
+  | <img src="images/ICP_Before.png" alt="Before ICP" width="300"/> | <img src="images/ICP_After.png" alt="After ICP" width="200"/> |
+  |-------------------------------------------------------------|---------------------------------------------------------------|
+
+</div>
+
 - Differences are highlighted:
   
   - Green: New structures or additions.
 
   - Red: Eroded or missing structures.
 
-<img src="images/Example_Broken.png" alt="Satiro e Baccante" width="300"/>
+<p align="center">
+  <img src="images/Example_Broken.png" alt="Satiro e Baccante" width="300"/>
+</p>
 
 ## Output
 
