@@ -116,8 +116,8 @@ class PLYProcessorGUI:
             "- Threshold: Distance threshold for considering points as mismatched.\n"
             "- RGB1: RGB color for missing/removed parts (default: [1.0, 0.0, 0.0]).\n"
             "- RGB2: RGB color for extra/added parts (default: [0.0, 1.0, 0.0]).\n"
-            "- Alpha1: Alpha for transparency of mismatched points in the first PLY (default: nan).\n"
-            "- Alpha2: Alpha for transparency of mismatched points in the second PLY (default: nan).\n"
+            "- Alpha1: Alpha for transparency of mismatched points in the first PLY (default: nan). [0 <= Alpha1 <= 1 ]\n"
+            "- Alpha2: Alpha for transparency of mismatched points in the second PLY (default: nan). [0 <= Alpha2 <= 1 ]\n"
             "- Mode: Determines how to apply color changes (default: 0). [0: Without shadows; 1: With shadows]"
         )
         CreateToolTip(self.params_info_label, text=tooltip_text)
@@ -222,7 +222,7 @@ class PLYProcessorGUI:
 
     def choose_rgb2(self):
         # Opens the color chooser with green initial color
-        rgb_tuple, hex_color = colorchooser.askcolor(initialcolor="#green", title="Choose RGB 2 Color")
+        rgb_tuple, hex_color = colorchooser.askcolor(initialcolor="green", title="Choose RGB 2 Color")
         if rgb_tuple:
             # Converts values ​​from 0-255 to 0-1
             self.rgb2 = [v / 255.0 for v in rgb_tuple]
