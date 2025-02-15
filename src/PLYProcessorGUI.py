@@ -3,7 +3,10 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, colorchooser
 import numpy as np
 import os
+import sys
+import subprocess
 import time
+import webbrowser
 from PIL import Image, ImageTk
 
 class CreateToolTip(object):
@@ -33,12 +36,13 @@ class CreateToolTip(object):
         self.id = self.widget.after(self.waittime, self.showtip)
 
     def unschedule(self):
-        id_ = self.id
-        self.id = None
-        if id_:
-            self.widget.after_cancel(id_)
+        if self.id:
+            self.widget.after_cancel(self.id)
+            self.id = None
 
     def showtip(self, event=None):
+        if not self.text:
+            return
         x, y, cx, cy = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 20
@@ -55,8 +59,12 @@ class CreateToolTip(object):
             self.tw.destroy()
         self.tw = None
 
+    def update_text(self, new_text):
+        self.text = new_text
+
 class PLYProcessorGUI:
     def __init__(self, master):
+        self.max_length = 15  # Maximum length of visible text in the file selection labels
         self.master = master
         master.title("PLY Model Processor")
         
@@ -86,13 +94,13 @@ class PLYProcessorGUI:
         # First File Button
         self.btn_file1 = ttk.Button(self.main_frame, text="Load Model 1", command=self.load_file1)
         self.btn_file1.grid(row=1, column=0, padx=5, pady=5)
-        self.label_file1 = ttk.Label(self.main_frame, text="No file selected", foreground="#666")
+        self.label_file1 = ttk.Label(self.main_frame, text="No file selected", width=self.max_length, foreground="#666")
         self.label_file1.grid(row=1, column=1, columnspan=2, sticky="w")
 
         # Second File Button
         self.btn_file2 = ttk.Button(self.main_frame, text="Load Model 2", command=self.load_file2)
         self.btn_file2.grid(row=2, column=0, padx=5, pady=5)
-        self.label_file2 = ttk.Label(self.main_frame, text="No file selected", foreground="#666")
+        self.label_file2 = ttk.Label(self.main_frame, text="No file selected", width=self.max_length, foreground="#666")
         self.label_file2.grid(row=2, column=1, columnspan=2, sticky="w")
 
         # Output Directory Button
@@ -101,8 +109,10 @@ class PLYProcessorGUI:
 
         # Output path truncation
         short_output_dir = os.path.basename(self.output_dir) if self.output_dir else "Not selected"
-        self.label_output = ttk.Label(self.main_frame, text=f"Output folder: {short_output_dir}", foreground="#666")
+        self.label_output = ttk.Label(self.main_frame, text=short_output_dir, width=self.max_length, foreground="#666")
         self.label_output.grid(row=3, column=1, columnspan=2, sticky="w")
+        if self.output_dir:
+            self.label_output.tooltip = CreateToolTip(self.label_output, self.output_dir)
 
         # Section for parameters selection (threshold, rgb, alpha e mode)
         self.params_frame = ttk.LabelFrame(self.main_frame, text="Parameters", padding="10")
@@ -181,8 +191,24 @@ class PLYProcessorGUI:
         self.status_label.grid(row=7, column=0, columnspan=3)
     
     def viewer_link(self):
-        import webbrowser
-        webbrowser.open("https://biaperass.github.io/Gaussian-Splatting-WebGL/")
+        url = "https://biaperass.github.io/Gaussian-Splatting-WebGL/"
+        try:
+            if sys.platform.startswith("win"):  # Windows
+                webbrowser.open(url)
+            elif sys.platform.startswith("darwin"):  # macOS
+                webbrowser.open(url)
+            elif sys.platform.startswith("linux"):
+                if "microsoft" in os.uname().release.lower():
+                    try:
+                        subprocess.call(["wslview", url])  # WSL with WSLView
+                    except FileNotFoundError:
+                        subprocess.call(["explorer.exe", url]) # WSL without WSLView
+                else:
+                    webbrowser.open(url)  # Linux
+            else:
+                messagebox.showerror("Error", "Unsupported OS")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open the browser: {e}")
 
     def add_logo(self, image_path):
         try:
@@ -201,19 +227,53 @@ class PLYProcessorGUI:
             logo_label = tk.Label(self.main_frame, image=self.logo_image, bg="#f0f0f0")
             logo_label.grid(row=0, column=0, columnspan=3, pady=(0, 10))  # Create a Label widget to display the image
         except Exception as e:
-            print(f"Error loading logo: {e}")    
+            print(f"Error loading logo: {e}")
 
     def load_file1(self):
         self.file1_path = filedialog.askopenfilename(filetypes=[("PLY files", "*.ply")])
-        self.label_file1.config(text=self.file1_path.split("/")[-1])
+        if self.file1_path:
+            filename = os.path.basename(self.file1_path)
+            if len(filename) > self.max_length:
+                filename = filename[:self.max_length - 3] + "..."  # Truncates the file name
+            self.label_file1.config(text=filename)
+
+            if hasattr(self.label_file1, "tooltip"):
+                self.label_file1.tooltip.update_text(self.file1_path)
+            else:
+                self.label_file1.tooltip = CreateToolTip(self.label_file1, self.file1_path)
 
     def load_file2(self):
         self.file2_path = filedialog.askopenfilename(filetypes=[("PLY files", "*.ply")])
-        self.label_file2.config(text=self.file2_path.split("/")[-1])
+        if self.file2_path:
+            filename = os.path.basename(self.file2_path)
+            if len(filename) > self.max_length:
+                filename = filename[:self.max_length - 3] + "..."  # Truncates the file name
+            self.label_file2.config(text=filename)
+
+            if hasattr(self.label_file2, "tooltip"):
+                self.label_file2.tooltip.update_text(self.file2_path)
+            else:
+                self.label_file2.tooltip = CreateToolTip(self.label_file2, self.file2_path)
+
+    def select_output_folder(self):
+        self.output_dir = filedialog.askdirectory()
+        if self.output_dir:
+            output_dir = os.path.basename(self.output_dir)
+            if len(output_dir) > self.max_length:
+                output_dir = output_dir[:self.max_length - 3] + "..."  # Truncates the file name
+            self.label_output.config(text=output_dir)
+            self.output_path = os.path.join(self.output_dir, "merged_model.ply")
+
+            if hasattr(self.label_output, "tooltip"):
+                self.label_output.tooltip.update_text(self.output_dir)
+            else:
+                self.label_output.tooltip = CreateToolTip(self.label_output, self.output_dir)
 
     def choose_rgb1(self):
-        # Opens the color chooser with initial color red
-        rgb_tuple, hex_color = colorchooser.askcolor(initialcolor="red", title="Choose RGB 1 Color")
+        # Obtain the initial color
+        initial_color = "#{:02x}{:02x}{:02x}".format(*(int(c * 255) for c in self.rgb1))
+        # Opens the color chooser
+        rgb_tuple, hex_color = colorchooser.askcolor(initialcolor=initial_color, title="Choose RGB 1 Color")
         if rgb_tuple:
             # Converts values ​​from 0-255 to 0-1
             self.rgb1 = [v / 255.0 for v in rgb_tuple]
@@ -221,8 +281,10 @@ class PLYProcessorGUI:
             self.rgb1_color_display.configure(text=hex_color, background=hex_color)
 
     def choose_rgb2(self):
-        # Opens the color chooser with green initial color
-        rgb_tuple, hex_color = colorchooser.askcolor(initialcolor="green", title="Choose RGB 2 Color")
+        # Obtain the initial color
+        initial_color = "#{:02x}{:02x}{:02x}".format(*(int(c * 255) for c in self.rgb2))
+        # Opens the color chooser
+        rgb_tuple, hex_color = colorchooser.askcolor(initialcolor=initial_color, title="Choose RGB 2 Color")
         if rgb_tuple:
             # Converts values ​​from 0-255 to 0-1
             self.rgb2 = [v / 255.0 for v in rgb_tuple]
@@ -330,20 +392,16 @@ class PLYProcessorGUI:
 
     def open_output_folder(self):
         if os.path.exists(self.output_dir):
-            try:
+            if sys.platform.startswith("win"):
                 os.startfile(self.output_dir)  # Windows
-            except:
-                import subprocess
-                try:
-                    subprocess.call(["open", self.output_dir])  # macOS
-                except:
-                    subprocess.call(["xdg-open", self.output_dir])  # Linux
+            elif sys.platform.startswith("darwin"):
+                subprocess.call(["open", self.output_dir])  # macOS
+            elif sys.platform.startswith("linux"):
+                if "microsoft" in os.uname().release.lower():
+                    subprocess.call(["explorer.exe", self.output_dir.replace("/", "\\")]) # WSL
+                else:
+                    subprocess.call(["xdg-open", self.output_dir]) # Linux
+            else:
+                messagebox.showerror("Error", "Unsupported OS")
         else:
             messagebox.showerror("Error", "Output folder not found!")
-
-    def select_output_folder(self):
-        self.output_dir = filedialog.askdirectory()
-        if self.output_dir:
-            short_output_dir = os.path.basename(self.output_dir)
-            self.label_output.config(text=f"Output folder: {short_output_dir}")
-            self.output_path = os.path.join(self.output_dir, "merged_model.ply")
