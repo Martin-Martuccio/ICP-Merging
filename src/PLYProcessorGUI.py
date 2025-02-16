@@ -303,12 +303,12 @@ class PLYProcessorGUI:
         num_points_model1 = handler1.elements["vertex"]["count"]
         num_points_model2 = handler2.elements["vertex"]["count"]
 
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-16") as f:
             f.write(f"Report for the model: {os.path.basename(self.output_path)}\n")
             f.write(f"Average distance between different points: {avg_distance:.4f}\n")
             f.write(f"Maximum distance between different points: {max_distance:.4f}\n")
-            f.write(f"Total number of points in ${self.file1_path}: {num_points_model1}\n")
-            f.write(f"Total number of points in ${self.file2_path}: {num_points_model2}\n")
+            f.write(f"Total number of points in {self.file1_path}: {num_points_model1}\n")
+            f.write(f"Total number of points in {self.file2_path}: {num_points_model2}\n")
             f.write(f"Processing time: {processing_time:.2f} seconds\n")
 
     def process_files(self):
