@@ -175,7 +175,7 @@ class PLYProcessorGUI:
         self.btn_process.grid(row=5, column=0, columnspan=1, pady=10)
 
         # Button to open the GitHub page of the Custom Viewer
-        self.btn_viewer = ttk.Button(self.main_frame, text="View the model?", command=self.viewer_link)
+        self.btn_viewer = ttk.Button(self.main_frame, text="Open Viewer", command=self.viewer_link)
         self.btn_viewer.grid(row=5, column=1, columnspan=2, sticky="w")
 
         # Button to open the output folder
